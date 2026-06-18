@@ -1,0 +1,42 @@
+# Servizi di sviluppo locale. Server e client girano sull'host (npm run dev:*);
+# qui c'è solo PostgreSQL + il task one-shot di migrazione schema (Liquibase).
+#
+#   npm run db:up        avvia PostgreSQL su localhost:5432
+#   npm run db:migrate   applica/aggiorna lo schema con Liquibase
+#   npm run db:down      ferma PostgreSQL (i dati restano nel volume)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: chrono
+      POSTGRES_PASSWORD: chrono
+      POSTGRES_DB: chrono
+    ports:
+      - "5432:5432"
+    volumes:
+      - chrono-pg-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chrono -d chrono"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: `docker compose ... run --rm migrate`. Resta fuori da `up` grazie al profile.
+  migrate:
+    image: liquibase/liquibase:4.31-alpine
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./server/db/changelog:/liquibase/changelog
+    command:
+      - --search-path=/liquibase/changelog
+      - --changelog-file=db.changelog-master.yml
+      - --url=jdbc:postgresql://db:5432/chrono
+      - --username=chrono
+      - --password=chrono
+      - update
+
+volumes:
+  chrono-pg-dev:

@@ -1,0 +1,10 @@
+# Changelog master Liquibase: lo schema del DB è definito by code qui (doc/05-data-model.md).
+# Ogni changeset è applicato una sola volta e tracciato in databasechangelog.
+# Aggiungere modifiche SEMPRE come nuovi changeset: mai editare quelli già rilasciati.
+databaseChangeLog:
+  - include:
+      file: changes/001-initial-schema.yml
+      relativeToChangelogFile: true
+  - include:
+      file: changes/002-seed.yml
+      relativeToChangelogFile: true

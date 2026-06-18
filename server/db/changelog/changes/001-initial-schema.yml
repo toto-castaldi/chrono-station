@@ -1,0 +1,162 @@
+# Modello single-workout su PostgreSQL (doc/05-data-model.md).
+# Gli istanti/durate in epoch ms eccedono il range INTEGER: sono BIGINT.
+databaseChangeLog:
+  - changeSet:
+      id: 001-initial-schema
+      author: chrono
+      changes:
+        # catalogo esercizi (placeholder fisso, vedi doc/03-exercises.md)
+        - createTable:
+            tableName: exercise
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints: { primaryKey: true, nullable: false }
+              - column:
+                  name: name
+                  type: TEXT
+                  constraints: { nullable: false }
+              - column:
+                  name: target_type   # 'none' | 'reps' | 'distance'
+                  type: TEXT
+                  defaultValue: "none"
+                  constraints: { nullable: false }
+              - column: { name: target_value, type: INTEGER } # es. 1000 (m) / 100 (reps); NULL se 'none'
+              - column: { name: unit, type: TEXT }            # es. 'm' | 'reps'; NULL se 'none'
+
+        # allenamento corrente (singleton). Il server è l'orologio autoritativo (doc/01 007).
+        - createTable:
+            tableName: workout
+            columns:
+              - column:
+                  name: id
+                  type: INTEGER
+                  defaultValueNumeric: 1
+                  constraints: { primaryKey: true, nullable: false }
+              - column: # 'onboarding'|'countdown'|'running'|'paused'|'finished'
+                  name: state
+                  type: TEXT
+                  constraints: { nullable: false }
+              - column:
+                  name: countdown_secs
+                  type: INTEGER
+                  defaultValueNumeric: 10
+                  constraints: { nullable: false }
+              - column: { name: countdown_ends_at, type: BIGINT } # epoch ms: fine countdown / istante elapsed=0
+              - column: { name: started_at, type: BIGINT }        # epoch ms a cui corrisponde elapsed=0
+              - column: { name: paused_elapsed_ms, type: BIGINT }  # elapsed congelato in pausa; NULL se running
+              - column: { name: finished_at, type: BIGINT }
+        - sql:
+            # garantisce l'unicità della riga singleton dell'allenamento
+            sql: ALTER TABLE workout ADD CONSTRAINT workout_singleton CHECK (id = 1)
+
+        - createTable:
+            tableName: team
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints: { primaryKey: true, nullable: false }
+              - column:
+                  name: name
+                  type: TEXT
+                  constraints: { nullable: false }
+              - column: # colore scelto, es. hex
+                  name: color
+                  type: TEXT
+                  constraints: { nullable: false }
+              - column: # ordine di visualizzazione delle corsie
+                  name: position
+                  type: INTEGER
+                  constraints: { nullable: false }
+
+        - createTable:
+            tableName: team_member
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints: { primaryKey: true, nullable: false }
+              - column:
+                  name: team_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_team_member_team
+                    references: team(id)
+                    deleteCascade: true
+              - column:
+                  name: name
+                  type: TEXT
+                  constraints: { nullable: false }
+
+        # ordine esercizi scelto da una squadra in onboarding
+        - createTable:
+            tableName: team_exercise
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints: { primaryKey: true, nullable: false }
+              - column:
+                  name: team_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_team_exercise_team
+                    references: team(id)
+                    deleteCascade: true
+              - column:
+                  name: exercise_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_team_exercise_exercise
+                    references: exercise(id)
+              - column: # 0-based, ordine nel circuito della squadra
+                  name: position
+                  type: INTEGER
+                  constraints: { nullable: false }
+        - addUniqueConstraint:
+            tableName: team_exercise
+            columnNames: team_id, position
+            constraintName: uq_team_exercise_team_position
+
+        # parziali registrati alla chiusura di un esercizio. Append-only: l'undo rimuove l'ultimo.
+        - createTable:
+            tableName: split
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints: { primaryKey: true, nullable: false }
+              - column:
+                  name: team_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_split_team
+                    references: team(id)
+                    deleteCascade: true
+              - column: # posizione dell'esercizio chiuso (== team_exercise.position)
+                  name: position
+                  type: INTEGER
+                  constraints: { nullable: false }
+              - column: # tempo trascorso dallo Start al momento della chiusura
+                  name: cumulative_ms
+                  type: BIGINT
+                  constraints: { nullable: false }
+              - column: # epoch ms
+                  name: recorded_at
+                  type: BIGINT
+                  constraints: { nullable: false }
+        - addUniqueConstraint:
+            tableName: split
+            columnNames: team_id, position
+            constraintName: uq_split_team_position

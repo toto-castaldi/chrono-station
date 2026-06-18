@@ -1,0 +1,81 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-seed-workout
+      author: chrono
+      # riga singleton dell'allenamento, sempre presente (reset = UPDATE, mai DELETE)
+      changes:
+        - insert:
+            tableName: workout
+            columns:
+              - column: { name: id, valueNumeric: 1 }
+              - column: { name: state, value: "onboarding" }
+              - column: { name: countdown_secs, valueNumeric: 10 }
+      rollback:
+        - delete:
+            tableName: workout
+            where: id = 1
+
+  - changeSet:
+      id: 002-seed-exercises
+      author: chrono
+      # catalogo placeholder (doc/03-exercises.md)
+      changes:
+        - insert:
+            tableName: exercise
+            columns:
+              - column: { name: name, value: "SkiErg" }
+              - column: { name: target_type, value: "distance" }
+              - column: { name: target_value, valueNumeric: 1000 }
+              - column: { name: unit, value: "m" }
+        - insert:
+            tableName: exercise
+            columns:
+              - column: { name: name, value: "Sled Push" }
+              - column: { name: target_type, value: "distance" }
+              - column: { name: target_value, valueNumeric: 50 }
+              - column: { name: unit, value: "m" }
+        - insert:
+            tableName: exercise
+            columns:
+              - column: { name: name, value: "Sled Pull" }
+              - column: { name: target_type, value: "distance" }
+              - column: { name: target_value, valueNumeric: 50 }
+              - column: { name: unit, value: "m" }
+        - insert:
+            tableName: exercise
+            columns:
+              - column: { name: name, value: "Burpee Broad Jump" }
+              - column: { name: target_type, value: "distance" }
+              - column: { name: target_value, valueNumeric: 80 }
+              - column: { name: unit, value: "m" }
+        - insert:
+            tableName: exercise
+            columns:
+              - column: { name: name, value: "Rowing" }
+              - column: { name: target_type, value: "distance" }
+              - column: { name: target_value, valueNumeric: 1000 }
+              - column: { name: unit, value: "m" }
+        - insert:
+            tableName: exercise
+            columns:
+              - column: { name: name, value: "Farmers Carry" }
+              - column: { name: target_type, value: "distance" }
+              - column: { name: target_value, valueNumeric: 200 }
+              - column: { name: unit, value: "m" }
+        - insert:
+            tableName: exercise
+            columns:
+              - column: { name: name, value: "Sandbag Lunges" }
+              - column: { name: target_type, value: "distance" }
+              - column: { name: target_value, valueNumeric: 100 }
+              - column: { name: unit, value: "m" }
+        - insert:
+            tableName: exercise
+            columns:
+              - column: { name: name, value: "Wall Balls" }
+              - column: { name: target_type, value: "reps" }
+              - column: { name: target_value, valueNumeric: 100 }
+              - column: { name: unit, value: "reps" }
+      rollback:
+        - delete:
+            tableName: exercise

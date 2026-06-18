@@ -1,60 +1,62 @@
-001. Il modello dati vive su SQLite ed è single-workout: esiste una sola riga `workout` alla volta (coerente con doc/01-architecture.md 004)
+001. Il modello dati vive su PostgreSQL ed è single-workout: esiste una sola riga `workout` alla volta (coerente con doc/01-architecture.md 004)
 
-002. Schema (indicativo):
+002. Schema definito **by code** con Liquibase, in changelog **YAML** versionati in `server/db/changelog/`: master `db.changelog-master.yml` che include i changeset in `changes/` (`001-initial-schema.yml`, `002-seed.yml`). Le tabelle e i dati seed (catalogo esercizi, riga singleton `workout`) NON sono creati dal codice applicativo: sono changeset Liquibase. Per evolvere lo schema si aggiunge **sempre un nuovo changeset** (mai modificare quelli già rilasciati), così l'`update` è idempotente e tracciato in `databasechangelog`. Gli istanti/durate in epoch ms eccedono il range `INTEGER`: sono `BIGINT`. Lo schema risultante (in SQL, a scopo illustrativo — la definizione autoritativa è nel changelog YAML):
 
 ```sql
 -- catalogo esercizi (placeholder fisso, vedi doc/03-exercises.md)
 CREATE TABLE exercise (
-  id          INTEGER PRIMARY KEY,
-  name        TEXT NOT NULL,
-  target_type TEXT NOT NULL DEFAULT 'none',  -- 'none' | 'reps' | 'distance'
-  target_value INTEGER,                      -- es. 1000 (m) o 100 (reps); NULL se 'none'
-  unit        TEXT                           -- es. 'm' | 'reps'; NULL se 'none'
+  id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name         TEXT NOT NULL,
+  target_type  TEXT NOT NULL DEFAULT 'none',  -- 'none' | 'reps' | 'distance'
+  target_value INTEGER,                       -- es. 1000 (m) o 100 (reps); NULL se 'none'
+  unit         TEXT                            -- es. 'm' | 'reps'; NULL se 'none'
 );
 
 -- allenamento corrente (singleton). Il server è l'orologio autoritativo (doc/01 007).
 CREATE TABLE workout (
-  id               INTEGER PRIMARY KEY CHECK (id = 1),
-  state            TEXT NOT NULL,        -- 'onboarding'|'countdown'|'running'|'paused'|'finished'
-  countdown_secs   INTEGER NOT NULL DEFAULT 10,
-  countdown_ends_at INTEGER,            -- epoch ms: fine countdown / istante elapsed=0
-  started_at       INTEGER,             -- epoch ms a cui corrisponde elapsed=0 (aggiornato alla ripresa)
-  paused_elapsed_ms INTEGER,            -- elapsed congelato mentre in pausa; NULL se running
-  finished_at      INTEGER
+  id                INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  state             TEXT NOT NULL,        -- 'onboarding'|'countdown'|'running'|'paused'|'finished'
+  countdown_secs    INTEGER NOT NULL DEFAULT 10,
+  countdown_ends_at BIGINT,               -- epoch ms: fine countdown / istante elapsed=0
+  started_at        BIGINT,               -- epoch ms a cui corrisponde elapsed=0 (aggiornato alla ripresa)
+  paused_elapsed_ms BIGINT,               -- elapsed congelato mentre in pausa; NULL se running
+  finished_at       BIGINT
 );
 
 CREATE TABLE team (
-  id          INTEGER PRIMARY KEY,
-  name        TEXT NOT NULL,
-  color       TEXT NOT NULL,            -- colore scelto, es. hex
-  position    INTEGER NOT NULL          -- ordine di visualizzazione delle corsie
+  id       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name     TEXT NOT NULL,
+  color    TEXT NOT NULL,                 -- colore scelto, es. hex
+  position INTEGER NOT NULL               -- ordine di visualizzazione delle corsie
 );
 
 CREATE TABLE team_member (
-  id      INTEGER PRIMARY KEY,
-  team_id INTEGER NOT NULL REFERENCES team(id) ON DELETE CASCADE,
+  id      BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  team_id BIGINT NOT NULL REFERENCES team(id) ON DELETE CASCADE,
   name    TEXT NOT NULL
 );
 
 -- ordine esercizi scelto da una squadra in onboarding
 CREATE TABLE team_exercise (
-  id          INTEGER PRIMARY KEY,
-  team_id     INTEGER NOT NULL REFERENCES team(id) ON DELETE CASCADE,
-  exercise_id INTEGER NOT NULL REFERENCES exercise(id),
-  position    INTEGER NOT NULL,         -- 0-based, ordine nel circuito della squadra
+  id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  team_id     BIGINT NOT NULL REFERENCES team(id) ON DELETE CASCADE,
+  exercise_id BIGINT NOT NULL REFERENCES exercise(id),
+  position    INTEGER NOT NULL,           -- 0-based, ordine nel circuito della squadra
   UNIQUE (team_id, position)
 );
 
 -- parziali registrati alla chiusura di un esercizio. Append-only: l'undo rimuove l'ultimo.
 CREATE TABLE split (
-  id            INTEGER PRIMARY KEY,
-  team_id       INTEGER NOT NULL REFERENCES team(id) ON DELETE CASCADE,
-  position      INTEGER NOT NULL,       -- posizione dell'esercizio chiuso (== team_exercise.position)
-  cumulative_ms INTEGER NOT NULL,       -- tempo trascorso dallo Start al momento della chiusura
-  recorded_at   INTEGER NOT NULL,       -- epoch ms
+  id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  team_id       BIGINT NOT NULL REFERENCES team(id) ON DELETE CASCADE,
+  position      INTEGER NOT NULL,         -- posizione dell'esercizio chiuso (== team_exercise.position)
+  cumulative_ms BIGINT NOT NULL,          -- tempo trascorso dallo Start al momento della chiusura
+  recorded_at   BIGINT NOT NULL,          -- epoch ms
   UNIQUE (team_id, position)
 );
 ```
+
+I `BIGINT` arriverebbero dal driver `pg` come stringa: il server registra un type-parser per riportarli a `number` (i valori — ms epoch, durate — stanno dentro `Number.MAX_SAFE_INTEGER`).
 
 003. Calcolo del tempo (nessun contatore incrementato in loop, doc/01 007):
 - in `running`: `elapsed_ms = now - started_at`

@@ -1,4 +1,4 @@
-001. Due canali: REST per le azioni dell'operatore (ogni azione è una transazione persistita su SQLite prima di riflettersi nello stream, doc/01 010), e SSE per ricevere tempo e stato dal server
+001. Due canali: REST per le azioni dell'operatore (ogni azione è una transazione persistita su PostgreSQL prima di riflettersi nello stream, doc/01 010), e SSE per ricevere tempo e stato dal server
 
 002. Endpoint REST — lettura:
 - `GET /api/exercises` → catalogo esercizi

@@ -36,10 +36,10 @@ app.setErrorHandler((err, _req, reply) => {
 // ---- letture ----
 app.get('/api/health', async () => ({ ok: true }));
 app.get('/api/workout', async () => snapshot());
-app.get('/api/exercises', async () => snapshot().exercises);
+app.get('/api/exercises', async () => (await snapshot()).exercises);
 
 // ---- stream SSE ----
-app.get('/api/stream', (_req, reply) => {
+app.get('/api/stream', async (_req, reply) => {
   reply.raw.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -47,42 +47,42 @@ app.get('/api/stream', (_req, reply) => {
     'X-Accel-Buffering': 'no',
   });
   reply.raw.write('retry: 2000\n\n');
-  addClient(reply.raw);
+  await addClient(reply.raw);
   reply.hijack();
 });
 
 // ---- onboarding ----
 app.post<{ Body: CreateTeamBody }>('/api/teams', async (req) => {
-  createTeam(req.body);
-  broadcastSnapshot('state');
+  await createTeam(req.body);
+  await broadcastSnapshot('state');
   return snapshot();
 });
 
 app.patch<{ Params: { id: string }; Body: UpdateTeamBody }>('/api/teams/:id', async (req) => {
-  updateTeam(Number(req.params.id), req.body);
-  broadcastSnapshot('state');
+  await updateTeam(Number(req.params.id), req.body);
+  await broadcastSnapshot('state');
   return snapshot();
 });
 
 app.delete<{ Params: { id: string } }>('/api/teams/:id', async (req) => {
-  deleteTeam(Number(req.params.id));
-  broadcastSnapshot('state');
+  await deleteTeam(Number(req.params.id));
+  await broadcastSnapshot('state');
   return snapshot();
 });
 
 app.put<{ Params: { id: string }; Body: SetExercisesBody }>(
   '/api/teams/:id/exercises',
   async (req) => {
-    setTeamExercises(Number(req.params.id), req.body.exerciseIds);
-    broadcastSnapshot('state');
+    await setTeamExercises(Number(req.params.id), req.body.exerciseIds);
+    await broadcastSnapshot('state');
     return snapshot();
   },
 );
 
 // ---- controllo esecuzione ----
 app.post<{ Body: StartBody }>('/api/workout/start', async (req) => {
-  start(req.body?.countdownSecs);
-  broadcastSnapshot('state');
+  await start(req.body?.countdownSecs);
+  await broadcastSnapshot('state');
   return snapshot();
 });
 
@@ -93,22 +93,22 @@ for (const [path, fn] of [
   ['reset', reset],
 ] as const) {
   app.post(`/api/workout/${path}`, async () => {
-    fn();
-    broadcastSnapshot('state');
+    await fn();
+    await broadcastSnapshot('state');
     return snapshot();
   });
 }
 
 // ---- esecuzione ----
 app.post<{ Params: { id: string } }>('/api/teams/:id/close', async (req) => {
-  closeExercise(Number(req.params.id));
-  broadcastSnapshot('team');
+  await closeExercise(Number(req.params.id));
+  await broadcastSnapshot('team');
   return snapshot();
 });
 
 app.post<{ Params: { id: string } }>('/api/teams/:id/undo', async (req) => {
-  undoExercise(Number(req.params.id));
-  broadcastSnapshot('team');
+  await undoExercise(Number(req.params.id));
+  await broadcastSnapshot('team');
   return snapshot();
 });
 

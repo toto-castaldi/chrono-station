@@ -9,10 +9,10 @@ function write(res: ServerResponse, event: SseEvent): void {
   res.write(`data: ${JSON.stringify(event.data)}\n\n`);
 }
 
-export function addClient(res: ServerResponse): void {
+export async function addClient(res: ServerResponse): Promise<void> {
   clients.add(res);
   // snapshot iniziale: rende qualunque pagina reload-safe (doc/01 001)
-  write(res, { type: 'snapshot', data: snapshot() });
+  write(res, { type: 'snapshot', data: await snapshot() });
   res.on('close', () => clients.delete(res));
 }
 
@@ -21,21 +21,23 @@ function broadcast(event: SseEvent): void {
 }
 
 /** Da chiamare dopo ogni mutazione REST per propagare lo stato aggiornato. */
-export function broadcastSnapshot(kind: 'state' | 'team'): void {
-  broadcast({ type: kind, data: snapshot() });
+export async function broadcastSnapshot(kind: 'state' | 'team'): Promise<void> {
+  broadcast({ type: kind, data: await snapshot() });
 }
 
 /** Tick periodico del tempo globale (doc/06-api.md 007). */
 export function startTicker(): NodeJS.Timeout {
   return setInterval(() => {
     if (clients.size === 0) return;
-    const { elapsedMs, state, changed } = tickState();
-    if (changed) {
-      // countdown -> running: manda lo snapshot completo
-      broadcast({ type: 'state', data: snapshot() });
-    }
-    if (state === 'running' || state === 'countdown') {
-      broadcast({ type: 'tick', data: { elapsedMs, state } });
-    }
+    void (async () => {
+      const { elapsedMs, state, changed } = await tickState();
+      if (changed) {
+        // countdown -> running: manda lo snapshot completo
+        broadcast({ type: 'state', data: await snapshot() });
+      }
+      if (state === 'running' || state === 'countdown') {
+        broadcast({ type: 'tick', data: { elapsedMs, state } });
+      }
+    })();
   }, 1000);
 }

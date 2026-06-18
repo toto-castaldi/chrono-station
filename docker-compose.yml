@@ -1,12 +1,48 @@
 services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-chrono}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chrono}
+      POSTGRES_DB: ${POSTGRES_DB:-chrono}
+    volumes:
+      - chrono-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chrono} -d ${POSTGRES_DB:-chrono}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    expose:
+      - "5432"
+
+  # Aggiorna lo schema all'avvio (Liquibase `update`, idempotente) e termina.
+  # Il server parte solo dopo che questo è uscito con successo (doc/04 010).
+  migrate:
+    image: ghcr.io/toto-castaldi/chrono-station-migrate:${TAG:-latest}
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      LIQUIBASE_SEARCH_PATH: /liquibase/changelog
+      LIQUIBASE_COMMAND_CHANGELOG_FILE: db.changelog-master.yml
+      LIQUIBASE_COMMAND_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-chrono}
+      LIQUIBASE_COMMAND_USERNAME: ${POSTGRES_USER:-chrono}
+      LIQUIBASE_COMMAND_PASSWORD: ${POSTGRES_PASSWORD:-chrono}
+    command: update
+
   server:
     image: ghcr.io/toto-castaldi/chrono-station-server:${TAG:-latest}
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
-      DB_PATH: /data/chrono.db
+      DATABASE_URL: postgres://${POSTGRES_USER:-chrono}:${POSTGRES_PASSWORD:-chrono}@db:5432/${POSTGRES_DB:-chrono}
       PORT: "3000"
-    volumes:
-      - chrono-data:/data
     expose:
       - "3000"
 
@@ -25,6 +61,6 @@ services:
       - caddy-config:/config
 
 volumes:
-  chrono-data: # SQLite persistente: sopravvive ad aggiornamenti dei container (doc/04 007)
+  chrono-pg: # PostgreSQL persistente: sopravvive ad aggiornamenti dei container (doc/04 007)
   caddy-data:
   caddy-config:
