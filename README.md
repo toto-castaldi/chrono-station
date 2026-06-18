@@ -25,6 +25,19 @@ npm run dev:client     # client Vite su http://localhost:5173 (proxy /api -> :30
 
 Il server si collega al DB via `DATABASE_URL` (default `postgres://chrono:chrono@localhost:5432/chrono`).
 
+### Utenti
+
+L'app richiede l'autenticazione e non ha registrazione pubblica: gli utenti si creano a mano
+(seed/admin, vedi [`doc/00-requirements.md`](doc/00-requirements.md) 019). Dopo `db:up`/`db:migrate`:
+
+```bash
+npm run user:create -- <username> <password>
+```
+
+Crea l'utente (password cifrata con bcrypt); se lo username esiste già ne aggiorna la password.
+Usa `DATABASE_URL` come il server, quindi va eseguito con il DB attivo. Poi accedi dal client con
+quelle credenziali. Lo stesso comando vale in produzione, eseguito nel container del server.
+
 ### Schema del database
 
 Lo schema è definito **by code** con [Liquibase](https://www.liquibase.com/), nei changelog in

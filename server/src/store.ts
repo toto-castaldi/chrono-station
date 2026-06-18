@@ -1,8 +1,11 @@
 import type {
+  CreateExerciseBody,
   CreateTeamBody,
   Exercise,
+  TargetType,
   Team,
   TeamProgress,
+  UpdateExerciseBody,
   UpdateTeamBody,
   WorkoutSnapshot,
   WorkoutState,
@@ -66,9 +69,11 @@ interface ExerciseRow {
   unit: string | null;
 }
 
-// Il catalogo esercizi è globale e condiviso fra tutti gli utenti.
-async function listExercises(): Promise<Exercise[]> {
-  const rows = await all<ExerciseRow>('SELECT * FROM exercise ORDER BY id');
+// Il catalogo esercizi è per-utente: ogni operatore censisce i propri (doc/03).
+async function listExercises(userId: number): Promise<Exercise[]> {
+  const rows = await all<ExerciseRow>('SELECT * FROM exercise WHERE user_id = $1 ORDER BY id', [
+    userId,
+  ]);
   return rows.map((r) => ({
     id: r.id,
     name: r.name,
@@ -156,7 +161,7 @@ export async function snapshot(userId: number): Promise<WorkoutSnapshot> {
     countdownEndsAt: w.state === 'countdown' ? (w.countdown_ends_at ?? undefined) : undefined,
     teams,
     progress: teams.map((t) => teamProgress(t, splitsByTeam.get(t.id) ?? [])),
-    exercises: await listExercises(),
+    exercises: await listExercises(userId),
   };
 }
 
@@ -248,7 +253,7 @@ export async function setTeamExercises(
 ): Promise<void> {
   await assertOnboarding(userId);
   await getTeamRow(userId, id);
-  const known = new Set((await listExercises()).map((e) => e.id));
+  const known = new Set((await listExercises(userId)).map((e) => e.id));
   for (const exId of exerciseIds)
     if (!known.has(exId)) throw new HttpError(400, `esercizio ${exId} inesistente`);
   await tx(async (c) => {
@@ -259,6 +264,98 @@ export async function setTeamExercises(
         [id, exerciseIds[pos], pos],
       );
   });
+}
+
+// ---- censimento esercizi (catalogo per-utente, solo in onboarding) ----
+
+async function getExerciseRow(userId: number, id: number): Promise<ExerciseRow> {
+  // come per le squadre: il filtro su user_id rende l'accesso cross-utente un 404
+  const row = await get<ExerciseRow>('SELECT * FROM exercise WHERE id = $1 AND user_id = $2', [
+    id,
+    userId,
+  ]);
+  if (!row) throw new HttpError(404, `esercizio ${id} non trovato`);
+  return row;
+}
+
+// L'obiettivo è opzionale (doc/03 002): se 'none' niente valore/unità; altrimenti
+// valore intero > 0 e unità obbligatori. Ritorna i campi normalizzati per il DB.
+function normalizeTarget(
+  targetType: TargetType,
+  targetValue: number | undefined,
+  unit: string | undefined,
+): { targetType: TargetType; targetValue: number | null; unit: string | null } {
+  if (targetType !== 'none' && targetType !== 'reps' && targetType !== 'distance')
+    throw new HttpError(400, 'tipo obiettivo non valido');
+  if (targetType === 'none') return { targetType, targetValue: null, unit: null };
+  if (targetValue === undefined || !Number.isInteger(targetValue) || targetValue <= 0)
+    throw new HttpError(400, 'il valore obiettivo deve essere un intero positivo');
+  const u = (unit ?? '').trim();
+  if (!u) throw new HttpError(400, "l'unità dell'obiettivo è obbligatoria");
+  return { targetType, targetValue, unit: u };
+}
+
+async function assertExerciseNameFree(
+  userId: number,
+  name: string,
+  excludeId?: number,
+): Promise<void> {
+  // unicità case-insensitive del nome esercizio per utente (coerente con le squadre)
+  const exists = (await listExercises(userId)).some(
+    (e) => e.id !== excludeId && e.name.toLowerCase() === name.toLowerCase(),
+  );
+  if (exists) throw new HttpError(409, `esiste già un esercizio di nome "${name}"`);
+}
+
+export async function createExercise(userId: number, body: CreateExerciseBody): Promise<number> {
+  await assertOnboarding(userId);
+  const name = (body.name ?? '').trim();
+  if (!name) throw new HttpError(400, "il nome dell'esercizio è obbligatorio");
+  await assertExerciseNameFree(userId, name);
+  const t = normalizeTarget(body.targetType, body.targetValue, body.unit);
+  const row = await get<{ id: number }>(
+    `INSERT INTO exercise (name, target_type, target_value, unit, user_id)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [name, t.targetType, t.targetValue, t.unit, userId],
+  );
+  return row?.id ?? 0;
+}
+
+export async function updateExercise(
+  userId: number,
+  id: number,
+  body: UpdateExerciseBody,
+): Promise<void> {
+  await assertOnboarding(userId);
+  const cur = await getExerciseRow(userId, id);
+  const name = body.name !== undefined ? body.name.trim() : cur.name;
+  if (!name) throw new HttpError(400, "il nome dell'esercizio è obbligatorio");
+  if (body.name !== undefined) await assertExerciseNameFree(userId, name, id);
+  // ri-normalizza l'obiettivo combinando i campi forniti con quelli correnti
+  const t = normalizeTarget(
+    body.targetType ?? cur.target_type,
+    body.targetValue !== undefined ? body.targetValue : (cur.target_value ?? undefined),
+    body.unit !== undefined ? body.unit : (cur.unit ?? undefined),
+  );
+  await all('UPDATE exercise SET name = $1, target_type = $2, target_value = $3, unit = $4 WHERE id = $5', [
+    name,
+    t.targetType,
+    t.targetValue,
+    t.unit,
+    id,
+  ]);
+}
+
+export async function deleteExercise(userId: number, id: number): Promise<void> {
+  await assertOnboarding(userId);
+  await getExerciseRow(userId, id);
+  const used = await get<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM team_exercise WHERE exercise_id = $1',
+    [id],
+  );
+  if ((used?.n ?? 0) > 0)
+    throw new HttpError(409, 'esercizio usato da una o più squadre: rimuovilo prima dalle squadre');
+  await all('DELETE FROM exercise WHERE id = $1', [id]);
 }
 
 // ---- controllo esecuzione ----

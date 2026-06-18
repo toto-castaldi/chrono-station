@@ -2,10 +2,12 @@ import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import Fastify from 'fastify';
 import type {
+  CreateExerciseBody,
   CreateTeamBody,
   LoginBody,
   SetExercisesBody,
   StartBody,
+  UpdateExerciseBody,
   UpdateTeamBody,
 } from '@shared/index';
 import { clearSession, getUser, login, readUserId, setSession } from './auth.js';
@@ -14,7 +16,9 @@ import { addClient, broadcastSnapshot, startTicker } from './sse.js';
 import {
   HttpError,
   closeExercise,
+  createExercise,
   createTeam,
+  deleteExercise,
   deleteTeam,
   pause,
   reset,
@@ -24,6 +28,7 @@ import {
   start,
   stop,
   undoExercise,
+  updateExercise,
   updateTeam,
 } from './store.js';
 
@@ -112,6 +117,28 @@ app.put<{ Params: { id: string }; Body: SetExercisesBody }>(
     return snapshot(req.userId);
   },
 );
+
+// ---- censimento esercizi (catalogo per-utente) ----
+app.post<{ Body: CreateExerciseBody }>('/api/exercises', async (req) => {
+  await createExercise(req.userId, req.body);
+  await broadcastSnapshot(req.userId, 'state');
+  return snapshot(req.userId);
+});
+
+app.patch<{ Params: { id: string }; Body: UpdateExerciseBody }>(
+  '/api/exercises/:id',
+  async (req) => {
+    await updateExercise(req.userId, Number(req.params.id), req.body);
+    await broadcastSnapshot(req.userId, 'state');
+    return snapshot(req.userId);
+  },
+);
+
+app.delete<{ Params: { id: string } }>('/api/exercises/:id', async (req) => {
+  await deleteExercise(req.userId, Number(req.params.id));
+  await broadcastSnapshot(req.userId, 'state');
+  return snapshot(req.userId);
+});
 
 // ---- controllo esecuzione ----
 app.post<{ Body: StartBody }>('/api/workout/start', async (req) => {

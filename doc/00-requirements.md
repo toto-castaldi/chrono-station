@@ -1,10 +1,10 @@
 001. Le pagine dell'applicazione sono poche. La prima di onboarding del circuito. La seconda del circuito in esecuzione. La terza con i risultati finali
 
-002. Nella pagina di onboarding si censiscono le squadre che partecipano al circuito. Una squadra può essere composta da una o più persone. Una squadra sceglie anche un colore
+002. Nella pagina di onboarding si censiscono gli esercizi e le squadre che partecipano al circuito. Una squadra può essere composta da una o più persone. Una squadra sceglie anche un colore
 
 003. In onboarding, per ogni squadra, viene definito l'ordine degli esercizi
 
-004. Gli esercizi vengono scelti tra una lista predefinita (vedi doc/03-exercises.md)
+004. Gli esercizi vengono scelti dal catalogo per-utente che l'operatore censisce in onboarding (vedi doc/03-exercises.md). Il censimento è un CRUD completo (aggiungi/modifica/elimina, solo in onboarding); un esercizio non è eliminabile finché è nell'ordine di una squadra
 
 005. Finito onboarding si passa a pagina di esecuzione
 

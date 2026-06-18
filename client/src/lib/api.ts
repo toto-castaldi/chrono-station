@@ -1,9 +1,11 @@
 import type {
   AuthResponse,
+  CreateExerciseBody,
   CreateTeamBody,
   LoginBody,
   SetExercisesBody,
   StartBody,
+  UpdateExerciseBody,
   UpdateTeamBody,
   User,
   WorkoutSnapshot,
@@ -74,6 +76,12 @@ export const api = {
   deleteTeam: (id: number) => req<WorkoutSnapshot>('DELETE', `/api/teams/${id}`),
   setExercises: (id: number, b: SetExercisesBody) =>
     req<WorkoutSnapshot>('PUT', `/api/teams/${id}/exercises`, b),
+
+  // ---- censimento esercizi ----
+  createExercise: (b: CreateExerciseBody) => req<WorkoutSnapshot>('POST', '/api/exercises', b),
+  updateExercise: (id: number, b: UpdateExerciseBody) =>
+    req<WorkoutSnapshot>('PATCH', `/api/exercises/${id}`, b),
+  deleteExercise: (id: number) => req<WorkoutSnapshot>('DELETE', `/api/exercises/${id}`),
 
   start: (b?: StartBody) => req<WorkoutSnapshot>('POST', '/api/workout/start', b ?? {}),
   pause: () => req<WorkoutSnapshot>('POST', '/api/workout/pause'),

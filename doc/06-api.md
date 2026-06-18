@@ -6,7 +6,7 @@
 - `GET /api/auth/me` → `{ user: { id, username } }` se autenticati, altrimenti `401` (il client lo usa al caricamento per decidere se mostrare il login)
 
 002. Endpoint REST — lettura:
-- `GET /api/exercises` → catalogo esercizi
+- `GET /api/exercises` → catalogo esercizi dell'utente autenticato
 - `GET /api/workout` → `WorkoutSnapshot` corrente (qualunque pagina lo usa per ripartire dopo un reload)
 
 003. Endpoint REST — onboarding (consentiti solo con `state = 'onboarding'`):
@@ -14,6 +14,9 @@
 - `PATCH /api/teams/:id` → aggiorna nome/colore/membri/posizione
 - `DELETE /api/teams/:id` → rimuove squadra
 - `PUT /api/teams/:id/exercises` → imposta l'ordine esercizi `{ exerciseIds: number[] }` (ordine = indice nell'array)
+- `POST /api/exercises` → censisce un esercizio nel catalogo dell'utente `{ name, targetType, targetValue?, unit? }`; nome univoco per utente (case-insensitive)
+- `PATCH /api/exercises/:id` → aggiorna nome/obiettivo di un esercizio
+- `DELETE /api/exercises/:id` → elimina un esercizio; `409` se è ancora nell'ordine di una squadra (va prima rimosso da quelle squadre)
 
 004. Endpoint REST — controllo esecuzione:
 - `POST /api/workout/start` → da `onboarding`: congela le squadre (doc/00 016), passa a `countdown`; al termine del countdown lo stato diventa `running` con `elapsed=0` (doc/00 015)

@@ -1,0 +1,33 @@
+# Catalogo esercizi per-utente (doc/03-exercises.md, doc/05-data-model.md, doc/06-api.md).
+# Il catalogo passa da globale e condiviso a uno-per-utente: ogni operatore censisce
+# i propri esercizi in onboarding (CRUD). Si aggiunge exercise.user_id (FK app_user).
+# Gli esercizi seedati dal 002 non hanno proprietario nel modello per-utente e vengono
+# eliminati (catalogo iniziale vuoto, coerente con come il 003 ha rimosso i dati orfani
+# del vecchio modello single-tenant). Le eventuali selezioni squadra (team_exercise) che
+# li referenziano vanno rimosse prima: la FK fk_team_exercise_exercise non ha cascade.
+databaseChangeLog:
+  - changeSet:
+      id: 004-exercise-per-user
+      author: chrono
+      changes:
+        - addColumn:
+            tableName: exercise
+            columns:
+              - column: { name: user_id, type: BIGINT }
+        # le selezioni esercizio delle squadre referenziano gli esercizi globali in via di rimozione
+        - sql:
+            sql: DELETE FROM team_exercise
+        # gli esercizi seedati (002) non hanno proprietario: si eliminano (catalogo per-utente parte vuoto)
+        - sql:
+            sql: DELETE FROM exercise WHERE user_id IS NULL
+        - addNotNullConstraint:
+            tableName: exercise
+            columnName: user_id
+            columnDataType: BIGINT
+        - addForeignKeyConstraint:
+            baseTableName: exercise
+            baseColumnNames: user_id
+            referencedTableName: app_user
+            referencedColumnNames: id
+            constraintName: fk_exercise_user
+            onDelete: CASCADE

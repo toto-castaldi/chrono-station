@@ -76,6 +76,24 @@ button.danger { background: var(--danger); border-color: var(--danger); }
 }
 
 /* ---- onboarding ---- */
+.exercise-catalog { margin-bottom: 20px; }
+.exercise-catalog h2 { font-size: 16px; margin: 0 0 8px; }
+.exercise-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.exercise-form input, .exercise-form select {
+  background: var(--panel); border: 1px solid #2c3040; color: var(--text); padding: 10px; border-radius: 8px;
+}
+.exercise-form .target-value { width: 90px; }
+.exercise-form .target-unit { width: 80px; }
+.exercise-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.exercise-list li {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--panel); border: 1px solid #2c3040; border-radius: 8px; padding: 6px 10px;
+}
+.exercise-list .ex-name { font-weight: 600; }
+.exercise-list .ex-target { font-size: 13px; opacity: 0.7; }
+.exercise-list button { padding: 2px 6px; font-size: 13px; }
+.exercise-catalog .hint { color: #f58231; font-size: 13px; }
+
 .new-team { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
 .new-team input { background: var(--panel); border: 1px solid #2c3040; color: var(--text); padding: 10px; border-radius: 8px; }
 .colors { display: flex; gap: 4px; }

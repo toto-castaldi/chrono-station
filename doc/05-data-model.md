@@ -1,6 +1,6 @@
-001. Il modello dati vive su PostgreSQL ed è multi-utente, un allenamento per utente (coerente con doc/01-architecture.md 004): ogni utente (`app_user`) ha al più una riga `workout` (`workout.user_id` UNIQUE) e le proprie squadre. Il catalogo esercizi è invece globale e condiviso
+001. Il modello dati vive su PostgreSQL ed è multi-utente, un allenamento per utente (coerente con doc/01-architecture.md 004): ogni utente (`app_user`) ha al più una riga `workout` (`workout.user_id` UNIQUE), le proprie squadre e il proprio catalogo esercizi (`exercise.user_id`, censito in onboarding)
 
-002. Schema definito **by code** con Liquibase, in changelog **YAML** versionati in `server/db/changelog/`: master `db.changelog-master.yml` che include i changeset in `changes/` (`001-initial-schema.yml`, `002-seed.yml`, `003-auth-multitenancy.yml`). Le tabelle e i dati seed (catalogo esercizi) NON sono creati dal codice applicativo: sono changeset Liquibase. Il changeset `003` introduce `app_user`, fa migrare il `workout` da singleton globale (`CHECK (id = 1)`) a uno-per-utente (chiave `user_id`) e partiziona `team` per utente; non crea alcun utente (`app_user` parte vuota: gli utenti si creano a mano, dev e prod) ed elimina i dati del vecchio modello single-tenant (riga singleton `workout` ed eventuali squadre) che nel modello per-utente non avrebbero proprietario. Per evolvere lo schema si aggiunge **sempre un nuovo changeset** (mai modificare quelli già rilasciati), così l'`update` è idempotente e tracciato in `databasechangelog`. Gli istanti/durate in epoch ms eccedono il range `INTEGER`: sono `BIGINT`. Lo schema risultante (in SQL, a scopo illustrativo — la definizione autoritativa è nel changelog YAML):
+002. Schema definito **by code** con Liquibase, in changelog **YAML** versionati in `server/db/changelog/`: master `db.changelog-master.yml` che include i changeset in `changes/` (`001-initial-schema.yml`, `002-seed.yml`, `003-auth-multitenancy.yml`, `004-exercise-per-user.yml`). Le tabelle e i dati seed (catalogo esercizi) NON sono creati dal codice applicativo: sono changeset Liquibase. Il changeset `003` introduce `app_user`, fa migrare il `workout` da singleton globale (`CHECK (id = 1)`) a uno-per-utente (chiave `user_id`) e partiziona `team` per utente; non crea alcun utente (`app_user` parte vuota: gli utenti si creano a mano, dev e prod) ed elimina i dati del vecchio modello single-tenant (riga singleton `workout` ed eventuali squadre) che nel modello per-utente non avrebbero proprietario. Il changeset `004` rende anche il catalogo esercizi per-utente: aggiunge `exercise.user_id` (FK `app_user`) ed elimina gli esercizi seedati dal `002` (privi di proprietario) — il catalogo di ogni utente parte vuoto e si popola via censimento in onboarding. Per evolvere lo schema si aggiunge **sempre un nuovo changeset** (mai modificare quelli già rilasciati), così l'`update` è idempotente e tracciato in `databasechangelog`. Gli istanti/durate in epoch ms eccedono il range `INTEGER`: sono `BIGINT`. Lo schema risultante (in SQL, a scopo illustrativo — la definizione autoritativa è nel changelog YAML):
 
 ```sql
 -- utenti dell'app: password cifrata bcrypt. Creati solo via seed/admin (doc/00 019).
@@ -11,9 +11,10 @@ CREATE TABLE app_user (
   created_at    BIGINT NOT NULL               -- epoch ms
 );
 
--- catalogo esercizi (placeholder fisso, vedi doc/03-exercises.md) — globale e condiviso
+-- catalogo esercizi per-utente, censito in onboarding (vedi doc/03-exercises.md)
 CREATE TABLE exercise (
   id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id      BIGINT NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,  -- partiziona il catalogo per utente
   name         TEXT NOT NULL,
   target_type  TEXT NOT NULL DEFAULT 'none',  -- 'none' | 'reps' | 'distance'
   target_value INTEGER,                       -- es. 1000 (m) o 100 (reps); NULL se 'none'

@@ -11,3 +11,6 @@ databaseChangeLog:
   - include:
       file: changes/003-auth-multitenancy.yml
       relativeToChangelogFile: true
+  - include:
+      file: changes/004-exercise-per-user.yml
+      relativeToChangelogFile: true

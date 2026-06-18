@@ -1,6 +1,16 @@
 import { useState } from 'react';
-import type { Exercise, WorkoutSnapshot } from '@shared/index';
+import type { Exercise, TargetType, WorkoutSnapshot } from '@shared/index';
 import { api } from '../lib/api.js';
+
+const TARGET_LABELS: Record<TargetType, string> = {
+  none: 'Nessuno',
+  reps: 'Ripetizioni',
+  distance: 'Distanza',
+};
+const DEFAULT_UNIT: Record<TargetType, string> = { none: '', reps: 'reps', distance: 'm' };
+
+const targetText = (ex: Exercise) =>
+  ex.targetType === 'none' ? '—' : `${ex.targetValue} ${ex.unit ?? ''}`.trim();
 
 const COLORS = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6', '#bfef45'];
 
@@ -60,6 +70,8 @@ export function Onboarding({ snap }: { snap: WorkoutSnapshot }) {
 
       {err && <div className="error" onClick={() => setErr(null)}>{err} ✕</div>}
 
+      <ExerciseCatalog exercises={snap.exercises} run={run} />
+
       <section className="new-team">
         <input placeholder="Nome squadra" value={name} onChange={(e) => setName(e.target.value)} />
         <input
@@ -113,20 +125,139 @@ export function Onboarding({ snap }: { snap: WorkoutSnapshot }) {
                 )}
               </div>
               <div className="exercise-pick">
-                {snap.exercises.map((ex) => (
-                  <button
-                    key={ex.id}
-                    className={chosen.includes(ex.id) ? 'on' : ''}
-                    onClick={() => toggleExercise(t.id, chosen, ex)}
-                  >
-                    {ex.name}
-                  </button>
-                ))}
+                {snap.exercises.length === 0 ? (
+                  <em>censisci prima gli esercizi</em>
+                ) : (
+                  snap.exercises.map((ex) => (
+                    <button
+                      key={ex.id}
+                      className={chosen.includes(ex.id) ? 'on' : ''}
+                      onClick={() => toggleExercise(t.id, chosen, ex)}
+                    >
+                      {ex.name}
+                    </button>
+                  ))
+                )}
               </div>
             </div>
           );
         })}
       </section>
     </div>
+  );
+}
+
+// Censimento esercizi: catalogo per-utente (CRUD), definito in onboarding.
+function ExerciseCatalog({
+  exercises,
+  run,
+}: {
+  exercises: Exercise[];
+  run: (p: Promise<unknown>) => void;
+}) {
+  const [name, setName] = useState('');
+  const [type, setType] = useState<TargetType>('none');
+  const [value, setValue] = useState('');
+  const [unit, setUnit] = useState('');
+  const [editId, setEditId] = useState<number | null>(null);
+
+  const reset = () => {
+    setEditId(null);
+    setName('');
+    setType('none');
+    setValue('');
+    setUnit('');
+  };
+
+  const pickType = (t: TargetType) => {
+    setType(t);
+    if (t !== 'none' && !unit) setUnit(DEFAULT_UNIT[t]);
+  };
+
+  const trimmed = name.trim();
+  const numValue = Number(value);
+  const targetOk = type === 'none' || (Number.isInteger(numValue) && numValue > 0 && unit.trim() !== '');
+  const canSave = trimmed !== '' && targetOk;
+
+  const body = () => ({
+    name: trimmed,
+    targetType: type,
+    targetValue: type === 'none' ? undefined : numValue,
+    unit: type === 'none' ? undefined : unit.trim(),
+  });
+
+  const save = () => {
+    if (!canSave) return;
+    const p = editId === null ? api.createExercise(body()) : api.updateExercise(editId, body());
+    run(p.then(reset));
+  };
+
+  const startEdit = (ex: Exercise) => {
+    setEditId(ex.id);
+    setName(ex.name);
+    setType(ex.targetType);
+    setValue(ex.targetValue !== undefined ? String(ex.targetValue) : '');
+    setUnit(ex.unit ?? '');
+  };
+
+  return (
+    <section className="exercise-catalog">
+      <h2>Esercizi</h2>
+      <div className="exercise-form">
+        <input
+          placeholder="Nome esercizio"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <select value={type} onChange={(e) => pickType(e.target.value as TargetType)}>
+          {(['none', 'reps', 'distance'] as TargetType[]).map((t) => (
+            <option key={t} value={t}>
+              {TARGET_LABELS[t]}
+            </option>
+          ))}
+        </select>
+        {type !== 'none' && (
+          <>
+            <input
+              className="target-value"
+              type="number"
+              min="1"
+              placeholder="Valore"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+            />
+            <input
+              className="target-unit"
+              placeholder="Unità"
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+            />
+          </>
+        )}
+        <button disabled={!canSave} onClick={save}>
+          {editId === null ? '+ Aggiungi esercizio' : 'Salva'}
+        </button>
+        {editId !== null && <button onClick={reset}>Annulla</button>}
+      </div>
+
+      {exercises.length === 0 ? (
+        <p className="hint">nessun esercizio censito</p>
+      ) : (
+        <ul className="exercise-list">
+          {exercises.map((ex) => (
+            <li key={ex.id}>
+              <span className="ex-name">{ex.name}</span>
+              <span className="ex-target">{targetText(ex)}</span>
+              <button onClick={() => startEdit(ex)} title="modifica">
+                ✎
+              </button>
+              <button onClick={() => run(api.deleteExercise(ex.id))} title="elimina">
+                🗑
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

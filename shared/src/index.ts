@@ -75,6 +75,21 @@ export interface SetExercisesBody {
   exerciseIds: number[];
 }
 
+// Censimento esercizi (catalogo per-utente, definito in onboarding).
+export interface CreateExerciseBody {
+  name: string;
+  targetType: TargetType; // 'none' | 'reps' | 'distance'
+  targetValue?: number;
+  unit?: string;
+}
+
+export interface UpdateExerciseBody {
+  name?: string;
+  targetType?: TargetType;
+  targetValue?: number;
+  unit?: string;
+}
+
 export interface StartBody {
   countdownSecs?: number;
 }
