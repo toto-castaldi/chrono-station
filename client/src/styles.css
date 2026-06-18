@@ -1,0 +1,101 @@
+:root {
+  --bg: #0f1117;
+  --panel: #1a1d27;
+  --text: #e8eaf0;
+  --muted: #9aa0b0;
+  --accent: #4363d8;
+  --danger: #e6194b;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.loading { display: grid; place-items: center; height: 100%; color: var(--muted); }
+
+.page { padding: 16px 24px; min-height: 100%; }
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+h1 { font-size: 22px; margin: 0; }
+
+button {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid #2c3040;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 15px;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); }
+button.danger { background: var(--danger); border-color: var(--danger); }
+
+.error {
+  background: #3a1622;
+  color: #ffb3c1;
+  border: 1px solid var(--danger);
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+
+/* ---- onboarding ---- */
+.new-team { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
+.new-team input { background: var(--panel); border: 1px solid #2c3040; color: var(--text); padding: 10px; border-radius: 8px; }
+.colors { display: flex; gap: 4px; }
+.swatch { width: 28px; height: 28px; border-radius: 50%; padding: 0; border: 2px solid transparent; }
+.swatch.sel { border-color: #fff; }
+
+.teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.team-card { background: var(--panel); border: 2px solid; border-radius: 10px; overflow: hidden; }
+.team-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: #fff; }
+.team-head span { flex: 1; font-size: 13px; opacity: 0.9; }
+.exercise-order { padding: 8px 12px; }
+.exercise-order ol { margin: 0; padding-left: 20px; }
+.exercise-pick { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 12px; }
+.exercise-pick button { padding: 6px 8px; font-size: 13px; }
+.exercise-pick button.on { background: var(--accent); border-color: var(--accent); }
+
+/* ---- execution ---- */
+.execution .global-timer { font-size: 56px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.execution .controls { display: flex; gap: 8px; }
+
+.countdown-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+  display: grid; place-items: center; z-index: 10;
+}
+.countdown-overlay span { font-size: 160px; font-weight: 800; }
+
+.lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.lane { background: var(--panel); border: 2px solid; border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
+.lane-head { display: flex; justify-content: space-between; padding: 8px 12px; color: #fff; font-size: 18px; }
+.lane-body { padding: 16px 12px; flex: 1; text-align: center; }
+.current-ex { font-size: 22px; font-weight: 600; }
+.target { color: var(--muted); margin-top: 6px; }
+.done { font-size: 18px; color: #3cb44b; }
+.lane-actions { display: flex; gap: 6px; padding: 8px; }
+.lane-actions .close { flex: 1; background: var(--accent); border-color: var(--accent); font-weight: 600; }
+
+/* ---- results ---- */
+.ranking { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rank-head { display: flex; align-items: center; gap: 10px; padding: 8px; border-left: 6px solid; background: var(--panel); border-radius: 8px; }
+.rank-head .pos { font-size: 20px; font-weight: 800; width: 28px; text-align: center; }
+.rank-head .swatch { width: 18px; height: 18px; border-radius: 50%; }
+.rank-head .total { margin-left: auto; font-variant-numeric: tabular-nums; font-size: 18px; }
+.splits { width: 100%; border-collapse: collapse; margin: 4px 0 0 44px; color: var(--muted); }
+.splits td { padding: 2px 8px; font-size: 13px; }
+.splits td:last-child { font-variant-numeric: tabular-nums; }

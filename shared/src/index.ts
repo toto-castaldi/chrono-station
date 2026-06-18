@@ -1,0 +1,88 @@
+// Tipi condivisi tra client e server (vedi doc/05-data-model.md).
+// Contiene SOLO tipi: viene cancellato a compile-time, quindi i consumer
+// usano `import type` e non c'è alcuna dipendenza runtime.
+
+export type WorkoutState =
+  | 'onboarding'
+  | 'countdown'
+  | 'running'
+  | 'paused'
+  | 'finished';
+
+export type TargetType = 'none' | 'reps' | 'distance';
+
+export interface Exercise {
+  id: number;
+  name: string;
+  targetType: TargetType;
+  targetValue?: number;
+  unit?: string;
+}
+
+export interface TeamExerciseRef {
+  exerciseId: number;
+  position: number;
+}
+
+export interface Split {
+  position: number;
+  cumulativeMs: number;
+}
+
+export interface Team {
+  id: number;
+  name: string;
+  color: string;
+  position: number;
+  members: string[];
+  exercises: TeamExerciseRef[];
+}
+
+export interface TeamProgress {
+  teamId: number;
+  currentPosition: number;
+  total: number;
+  finished: boolean;
+  totalMs?: number;
+  splits: Split[];
+}
+
+export interface WorkoutSnapshot {
+  state: WorkoutState;
+  elapsedMs: number;
+  countdownEndsAt?: number;
+  teams: Team[];
+  progress: TeamProgress[];
+  exercises: Exercise[];
+}
+
+// ---- payload delle azioni REST ----
+
+export interface CreateTeamBody {
+  name: string;
+  color: string;
+  members: string[];
+}
+
+export interface UpdateTeamBody {
+  name?: string;
+  color?: string;
+  members?: string[];
+  position?: number;
+}
+
+export interface SetExercisesBody {
+  exerciseIds: number[];
+}
+
+export interface StartBody {
+  countdownSecs?: number;
+}
+
+// ---- eventi SSE ----
+
+export type SseEvent =
+  | { type: 'snapshot'; data: WorkoutSnapshot }
+  | { type: 'state'; data: WorkoutSnapshot }
+  | { type: 'team'; data: WorkoutSnapshot }
+  | { type: 'tick'; data: { elapsedMs: number; state: WorkoutState } };

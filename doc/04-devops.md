@@ -15,3 +15,5 @@
 008. I segreti del deploy (chiave SSH, host/utente del server, token per autenticarsi a GHCR dal server) sono GitHub Actions secrets, mai nel repository
 
 009. Le immagini sono taggate con lo SHA del commit oltre che con `latest`, per tracciabilità e per poter fare rollback a una versione precedente
+
+010. Ad ogni aggiornamento di produzione il database SQLite viene droppato e ricreato se cambia la forma dello schema. Il server mantiene una versione di schema (`PRAGMA user_version`); all'avvio, se la versione persistita differisce da quella attesa dal codice, droppa e ricrea le tabelle. Non c'è migrazione dei dati: un eventuale allenamento in corso durante un deploy con cambio schema viene perso (accettabile, è single-user/single-workout). Senza cambio di schema il volume persistente preserva i dati (007)

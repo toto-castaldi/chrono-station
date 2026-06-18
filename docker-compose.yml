@@ -1,0 +1,30 @@
+services:
+  server:
+    image: ghcr.io/toto-castaldi/chrono-station-server:${TAG:-latest}
+    restart: unless-stopped
+    environment:
+      DB_PATH: /data/chrono.db
+      PORT: "3000"
+    volumes:
+      - chrono-data:/data
+    expose:
+      - "3000"
+
+  web:
+    image: ghcr.io/toto-castaldi/chrono-station-web:${TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - server
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  chrono-data: # SQLite persistente: sopravvive ad aggiornamenti dei container (doc/04 007)
+  caddy-data:
+  caddy-config:

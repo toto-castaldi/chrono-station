@@ -1,0 +1,19 @@
+# SITE_ADDRESS = ':80' (HTTP) oppure un dominio per HTTPS automatico (doc/04-devops.md)
+{$SITE_ADDRESS::80} {
+	encode gzip
+
+	# API + stream SSE verso il server. flush_interval -1 = niente buffering (SSE).
+	@api path /api/*
+	handle @api {
+		reverse_proxy server:3000 {
+			flush_interval -1
+		}
+	}
+
+	# client statico (SPA: fallback su index.html)
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/build
+.git
+data
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
