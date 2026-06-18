@@ -59,6 +59,8 @@ button.danger { background: var(--danger); border-color: var(--danger); }
 .colors { display: flex; gap: 4px; }
 .swatch { width: 28px; height: 28px; border-radius: 50%; padding: 0; border: 2px solid transparent; }
 .swatch.sel { border-color: #fff; }
+.swatch.taken { opacity: 0.3; }
+.new-team .hint { color: #f58231; font-size: 13px; }
 
 .teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
 .team-card { background: var(--panel); border: 2px solid; border-radius: 10px; overflow: hidden; }

@@ -147,15 +147,25 @@ function assertOnboarding() {
 
 export function createTeam(body: CreateTeamBody): number {
   assertOnboarding();
+  // doc/00 018: nome e almeno un membro obbligatori; nome (case-insensitive) e colore univoci.
+  const name = (body.name ?? '').trim();
+  if (!name) throw new HttpError(400, 'il nome squadra è obbligatorio');
+  const members = (body.members ?? []).map((m) => m.trim()).filter(Boolean);
+  if (members.length === 0) throw new HttpError(400, 'serve almeno un membro');
+  const teams = listTeams();
+  if (teams.some((t) => t.name.toLowerCase() === name.toLowerCase()))
+    throw new HttpError(409, `esiste già una squadra di nome "${name}"`);
+  if (teams.some((t) => t.color === body.color))
+    throw new HttpError(409, 'colore già usato da un\'altra squadra');
   const pos =
     ((db.prepare('SELECT MAX(position) AS m FROM team').get() as { m: number | null }).m ?? -1) + 1;
   const tx = db.transaction(() => {
     const info = db
       .prepare('INSERT INTO team (name, color, position) VALUES (?, ?, ?)')
-      .run(body.name, body.color, pos);
+      .run(name, body.color, pos);
     const teamId = Number(info.lastInsertRowid);
     const insMember = db.prepare('INSERT INTO team_member (team_id, name) VALUES (?, ?)');
-    for (const m of body.members ?? []) insMember.run(teamId, m);
+    for (const m of members) insMember.run(teamId, m);
     return teamId;
   });
   return tx();
@@ -164,6 +174,16 @@ export function createTeam(body: CreateTeamBody): number {
 export function updateTeam(id: number, body: UpdateTeamBody): void {
   assertOnboarding();
   getTeamRow(id);
+  // doc/00 018: nome (case-insensitive) e colore restano univoci tra le squadre.
+  const others = listTeams().filter((t) => t.id !== id);
+  if (body.name !== undefined) {
+    const name = body.name.trim();
+    if (!name) throw new HttpError(400, 'il nome squadra è obbligatorio');
+    if (others.some((t) => t.name.toLowerCase() === name.toLowerCase()))
+      throw new HttpError(409, `esiste già una squadra di nome "${name}"`);
+  }
+  if (body.color !== undefined && others.some((t) => t.color === body.color))
+    throw new HttpError(409, 'colore già usato da un\'altra squadra');
   const tx = db.transaction(() => {
     if (body.name !== undefined) db.prepare('UPDATE team SET name = ? WHERE id = ?').run(body.name, id);
     if (body.color !== undefined)

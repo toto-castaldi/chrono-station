@@ -12,18 +12,27 @@ export function Onboarding({ snap }: { snap: WorkoutSnapshot }) {
 
   const run = (p: Promise<unknown>) => p.catch((e: Error) => setErr(e.message));
 
+  // doc/00 018: nome + almeno un membro obbligatori; nome (case-insensitive) e colore univoci.
+  const usedColors = new Set(snap.teams.map((t) => t.color));
+  const usedNames = new Set(snap.teams.map((t) => t.name.trim().toLowerCase()));
+  const firstFreeColor = (used: Set<string>) => COLORS.find((c) => !used.has(c)) ?? COLORS[0];
+
+  const trimmedName = name.trim();
+  const memberList = members.split(',').map((m) => m.trim()).filter(Boolean);
+  const nameDuplicate = trimmedName !== '' && usedNames.has(trimmedName.toLowerCase());
+  const colorTaken = usedColors.has(color);
+  const canAddTeam =
+    trimmedName !== '' && memberList.length > 0 && !nameDuplicate && !colorTaken;
+
   const addTeam = () => {
-    if (!name.trim()) return;
+    if (!canAddTeam) return;
     run(
       api
-        .createTeam({
-          name: name.trim(),
-          color,
-          members: members.split(',').map((m) => m.trim()).filter(Boolean),
-        })
+        .createTeam({ name: trimmedName, color, members: memberList })
         .then(() => {
           setName('');
           setMembers('');
+          setColor(firstFreeColor(new Set([...usedColors, color])));
         }),
     );
   };
@@ -59,16 +68,25 @@ export function Onboarding({ snap }: { snap: WorkoutSnapshot }) {
           onChange={(e) => setMembers(e.target.value)}
         />
         <div className="colors">
-          {COLORS.map((c) => (
-            <button
-              key={c}
-              className={`swatch ${c === color ? 'sel' : ''}`}
-              style={{ background: c }}
-              onClick={() => setColor(c)}
-            />
-          ))}
+          {COLORS.map((c) => {
+            const taken = usedColors.has(c);
+            return (
+              <button
+                key={c}
+                className={`swatch ${c === color ? 'sel' : ''} ${taken ? 'taken' : ''}`}
+                style={{ background: c }}
+                disabled={taken}
+                title={taken ? 'colore già usato' : undefined}
+                onClick={() => setColor(c)}
+              />
+            );
+          })}
         </div>
-        <button onClick={addTeam}>+ Aggiungi squadra</button>
+        <button disabled={!canAddTeam} onClick={addTeam}>
+          + Aggiungi squadra
+        </button>
+        {nameDuplicate && <span className="hint">nome squadra già usato</span>}
+        {colorTaken && <span className="hint">colore già usato, scegline un altro</span>}
       </section>
 
       <section className="teams">

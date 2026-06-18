@@ -31,3 +31,5 @@
 016. Squadre, membri e ordine degli esercizi si definiscono solo in onboarding: dopo lo Start sono congelati e non più modificabili
 
 017. L'operatore può annullare (undo) l'ultima chiusura di esercizio di una squadra: l'esercizio corrente viene riaperto e il parziale errato scartato
+
+018. In onboarding una squadra può essere aggiunta solo se ha un nome e almeno un membro. Nome e colore devono essere univoci tra le squadre; il confronto del nome è senza distinzione tra maiuscole e minuscole (case-insensitive)
