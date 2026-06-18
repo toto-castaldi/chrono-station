@@ -19,6 +19,28 @@ body {
 
 .loading { display: grid; place-items: center; height: 100%; color: var(--muted); }
 
+/* ---- login ---- */
+.login { display: grid; place-items: center; height: 100%; }
+.login-card {
+  display: flex; flex-direction: column; gap: 14px;
+  background: var(--panel); border: 1px solid #2c3040; border-radius: 12px;
+  padding: 28px 32px; width: 320px;
+}
+.login-card h1 { text-align: center; margin-bottom: 4px; }
+.login-card label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+.login-card input {
+  background: var(--bg); border: 1px solid #2c3040; color: var(--text);
+  padding: 10px; border-radius: 8px; font-size: 15px;
+}
+.login-card button.primary { margin-top: 4px; }
+
+/* pulsante di logout, defilato nell'angolo per non coprire le azioni delle pagine */
+.logout {
+  position: fixed; bottom: 12px; right: 12px;
+  font-size: 12px; padding: 6px 10px; color: var(--muted); opacity: 0.7; z-index: 5;
+}
+.logout:hover { opacity: 1; }
+
 .page { padding: 16px 24px; min-height: 100%; }
 
 header {

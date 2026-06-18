@@ -1,5 +1,10 @@
 001. Due canali: REST per le azioni dell'operatore (ogni azione è una transazione persistita su PostgreSQL prima di riflettersi nello stream, doc/01 010), e SSE per ricevere tempo e stato dal server
 
+001b. Autenticazione (doc/01 014): tutti gli endpoint richiedono una sessione valida (cookie httpOnly firmato) ad eccezione di `GET /api/health` e `POST /api/auth/login`. Senza sessione valida la risposta è `401 { error: 'non autenticato' }` e il client torna al login. Le richieste portano il cookie automaticamente (browser: `credentials: 'include'` / `EventSource` con `withCredentials`). Ogni risposta è limitata ai dati dell'utente autenticato.
+- `POST /api/auth/login` ← `{ username, password }` → `{ user: { id, username } }` e imposta il cookie di sessione; credenziali errate → `401 { error: 'credenziali non valide' }`
+- `POST /api/auth/logout` → `{ ok: true }` e azzera il cookie di sessione
+- `GET /api/auth/me` → `{ user: { id, username } }` se autenticati, altrimenti `401` (il client lo usa al caricamento per decidere se mostrare il login)
+
 002. Endpoint REST — lettura:
 - `GET /api/exercises` → catalogo esercizi
 - `GET /api/workout` → `WorkoutSnapshot` corrente (qualunque pagina lo usa per ripartire dopo un reload)
@@ -23,7 +28,7 @@
 
 006. Le mutazioni di stato/squadre sono rifiutate (409) se incompatibili con lo stato corrente (es. `close` fuori da `running`, `POST /api/teams` fuori da `onboarding`)
 
-007. Stream SSE — `GET /api/stream`:
+007. Stream SSE — `GET /api/stream` (autenticato via cookie; ogni utente riceve solo gli eventi del proprio allenamento, tick inclusi):
 - alla connessione: evento `snapshot` con il `WorkoutSnapshot` completo (reload-safe)
 - `tick`: `{ elapsedMs, state }` ogni ~1s mentre `running` (il client può interpolare tra i tick, ma l'autorità è il server, doc/01 009)
 - `state`: ad ogni cambio di stato (start/countdown/pausa/ripresa/stop)

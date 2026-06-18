@@ -28,14 +28,23 @@ interface WorkoutRow {
   finished_at: number | null;
 }
 
-const getWorkoutRow = async (): Promise<WorkoutRow> =>
-  (await get<WorkoutRow>('SELECT * FROM workout WHERE id = 1')) as WorkoutRow;
+// Multitenancy: ogni utente ha un proprio workout (workout.user_id UNIQUE).
+// Creato on-demand al primo accesso; l'upsert ON CONFLICT gestisce la race.
+const getOrCreateWorkout = async (userId: number): Promise<WorkoutRow> => {
+  await all(
+    `INSERT INTO workout (user_id, state, countdown_secs)
+       VALUES ($1, 'onboarding', 10)
+     ON CONFLICT (user_id) DO NOTHING`,
+    [userId],
+  );
+  return (await get<WorkoutRow>('SELECT * FROM workout WHERE user_id = $1', [userId])) as WorkoutRow;
+};
 
 /** Il countdown è terminato → lo stato diventa running. Ritorna true se è cambiato. */
-async function reconcile(): Promise<boolean> {
-  const w = await getWorkoutRow();
+async function reconcile(userId: number): Promise<boolean> {
+  const w = await getOrCreateWorkout(userId);
   if (w.state === 'countdown' && w.countdown_ends_at !== null && Date.now() >= w.countdown_ends_at) {
-    await all("UPDATE workout SET state = 'running' WHERE id = 1");
+    await all("UPDATE workout SET state = 'running' WHERE user_id = $1", [userId]);
     return true;
   }
   return false;
@@ -57,6 +66,7 @@ interface ExerciseRow {
   unit: string | null;
 }
 
+// Il catalogo esercizi è globale e condiviso fra tutti gli utenti.
 async function listExercises(): Promise<Exercise[]> {
   const rows = await all<ExerciseRow>('SELECT * FROM exercise ORDER BY id');
   return rows.map((r) => ({
@@ -75,19 +85,26 @@ interface TeamRow {
   position: number;
 }
 
-async function getTeamRow(id: number): Promise<TeamRow> {
-  const row = await get<TeamRow>('SELECT * FROM team WHERE id = $1', [id]);
+async function getTeamRow(userId: number, id: number): Promise<TeamRow> {
+  // il vincolo su user_id rende l'accesso cross-utente un 404 (ownership check)
+  const row = await get<TeamRow>('SELECT * FROM team WHERE id = $1 AND user_id = $2', [id, userId]);
   if (!row) throw new HttpError(404, `team ${id} non trovata`);
   return row;
 }
 
-async function listTeams(): Promise<Team[]> {
-  const teams = await all<TeamRow>('SELECT * FROM team ORDER BY position');
+async function listTeams(userId: number): Promise<Team[]> {
+  const teams = await all<TeamRow>('SELECT * FROM team WHERE user_id = $1 ORDER BY position', [
+    userId,
+  ]);
   const members = await all<{ team_id: number; name: string }>(
-    'SELECT team_id, name FROM team_member ORDER BY id',
+    `SELECT team_id, name FROM team_member
+       WHERE team_id IN (SELECT id FROM team WHERE user_id = $1) ORDER BY id`,
+    [userId],
   );
   const exercises = await all<{ team_id: number; exercise_id: number; position: number }>(
-    'SELECT team_id, exercise_id, position FROM team_exercise ORDER BY position',
+    `SELECT team_id, exercise_id, position FROM team_exercise
+       WHERE team_id IN (SELECT id FROM team WHERE user_id = $1) ORDER BY position`,
+    [userId],
   );
   return teams.map((t) => ({
     id: t.id,
@@ -118,12 +135,14 @@ function teamProgress(
   };
 }
 
-export async function snapshot(): Promise<WorkoutSnapshot> {
-  await reconcile();
-  const w = await getWorkoutRow();
-  const teams = await listTeams();
+export async function snapshot(userId: number): Promise<WorkoutSnapshot> {
+  await reconcile(userId);
+  const w = await getOrCreateWorkout(userId);
+  const teams = await listTeams(userId);
   const splitRows = await all<{ team_id: number; position: number; cumulative_ms: number }>(
-    'SELECT team_id, position, cumulative_ms FROM split ORDER BY position',
+    `SELECT team_id, position, cumulative_ms FROM split
+       WHERE team_id IN (SELECT id FROM team WHERE user_id = $1) ORDER BY position`,
+    [userId],
   );
   const splitsByTeam = new Map<number, Array<{ position: number; cumulativeMs: number }>>();
   for (const s of splitRows) {
@@ -142,41 +161,44 @@ export async function snapshot(): Promise<WorkoutSnapshot> {
 }
 
 /** Riconcilia il countdown senza costruire l'intero snapshot (usato dal tick SSE). */
-export async function tickState(): Promise<{
+export async function tickState(userId: number): Promise<{
   elapsedMs: number;
   state: WorkoutState;
   changed: boolean;
 }> {
-  const changed = await reconcile();
-  const w = await getWorkoutRow();
+  const changed = await reconcile(userId);
+  const w = await getOrCreateWorkout(userId);
   return { elapsedMs: elapsedMs(w), state: w.state, changed };
 }
 
 // ---- onboarding (solo in stato onboarding) ----
 
-async function assertOnboarding(): Promise<void> {
-  if ((await getWorkoutRow()).state !== 'onboarding')
+async function assertOnboarding(userId: number): Promise<void> {
+  if ((await getOrCreateWorkout(userId)).state !== 'onboarding')
     throw new HttpError(409, 'modifica consentita solo in onboarding');
 }
 
-export async function createTeam(body: CreateTeamBody): Promise<number> {
-  await assertOnboarding();
+export async function createTeam(userId: number, body: CreateTeamBody): Promise<number> {
+  await assertOnboarding(userId);
   // doc/00 018: nome e almeno un membro obbligatori; nome (case-insensitive) e colore univoci.
   const name = (body.name ?? '').trim();
   if (!name) throw new HttpError(400, 'il nome squadra è obbligatorio');
   const members = (body.members ?? []).map((m) => m.trim()).filter(Boolean);
   if (members.length === 0) throw new HttpError(400, 'serve almeno un membro');
-  const teams = await listTeams();
+  const teams = await listTeams(userId);
   if (teams.some((t) => t.name.toLowerCase() === name.toLowerCase()))
     throw new HttpError(409, `esiste già una squadra di nome "${name}"`);
   if (teams.some((t) => t.color === body.color))
     throw new HttpError(409, 'colore già usato da un\'altra squadra');
-  const maxPos = await get<{ m: number | null }>('SELECT MAX(position) AS m FROM team');
+  const maxPos = await get<{ m: number | null }>(
+    'SELECT MAX(position) AS m FROM team WHERE user_id = $1',
+    [userId],
+  );
   const pos = (maxPos?.m ?? -1) + 1;
   return tx(async (c) => {
     const { rows } = await c.query<{ id: number }>(
-      'INSERT INTO team (name, color, position) VALUES ($1, $2, $3) RETURNING id',
-      [name, body.color, pos],
+      'INSERT INTO team (name, color, position, user_id) VALUES ($1, $2, $3, $4) RETURNING id',
+      [name, body.color, pos, userId],
     );
     const teamId = rows[0].id;
     for (const m of members)
@@ -185,11 +207,11 @@ export async function createTeam(body: CreateTeamBody): Promise<number> {
   });
 }
 
-export async function updateTeam(id: number, body: UpdateTeamBody): Promise<void> {
-  await assertOnboarding();
-  await getTeamRow(id);
+export async function updateTeam(userId: number, id: number, body: UpdateTeamBody): Promise<void> {
+  await assertOnboarding(userId);
+  await getTeamRow(userId, id);
   // doc/00 018: nome (case-insensitive) e colore restano univoci tra le squadre.
-  const others = (await listTeams()).filter((t) => t.id !== id);
+  const others = (await listTeams(userId)).filter((t) => t.id !== id);
   if (body.name !== undefined) {
     const name = body.name.trim();
     if (!name) throw new HttpError(400, 'il nome squadra è obbligatorio');
@@ -213,15 +235,19 @@ export async function updateTeam(id: number, body: UpdateTeamBody): Promise<void
   });
 }
 
-export async function deleteTeam(id: number): Promise<void> {
-  await assertOnboarding();
-  await getTeamRow(id);
+export async function deleteTeam(userId: number, id: number): Promise<void> {
+  await assertOnboarding(userId);
+  await getTeamRow(userId, id);
   await all('DELETE FROM team WHERE id = $1', [id]);
 }
 
-export async function setTeamExercises(id: number, exerciseIds: number[]): Promise<void> {
-  await assertOnboarding();
-  await getTeamRow(id);
+export async function setTeamExercises(
+  userId: number,
+  id: number,
+  exerciseIds: number[],
+): Promise<void> {
+  await assertOnboarding(userId);
+  await getTeamRow(userId, id);
   const known = new Set((await listExercises()).map((e) => e.id));
   for (const exId of exerciseIds)
     if (!known.has(exId)) throw new HttpError(400, `esercizio ${exId} inesistente`);
@@ -237,10 +263,10 @@ export async function setTeamExercises(id: number, exerciseIds: number[]): Promi
 
 // ---- controllo esecuzione ----
 
-export async function start(countdownSecs?: number): Promise<void> {
-  const w = await getWorkoutRow();
+export async function start(userId: number, countdownSecs?: number): Promise<void> {
+  const w = await getOrCreateWorkout(userId);
   if (w.state !== 'onboarding') throw new HttpError(409, 'start consentito solo da onboarding');
-  const teams = await listTeams();
+  const teams = await listTeams(userId);
   if (teams.length === 0) throw new HttpError(409, 'nessuna squadra registrata');
   if (teams.some((t) => t.exercises.length === 0))
     throw new HttpError(409, 'ogni squadra deve avere almeno un esercizio');
@@ -250,60 +276,62 @@ export async function start(countdownSecs?: number): Promise<void> {
     `UPDATE workout
        SET state = 'countdown', countdown_secs = $1, countdown_ends_at = $2,
            started_at = $2, paused_elapsed_ms = NULL, finished_at = NULL
-     WHERE id = 1`,
-    [secs, endsAt],
+     WHERE user_id = $3`,
+    [secs, endsAt, userId],
   );
 }
 
-export async function pause(): Promise<void> {
-  await reconcile();
-  const w = await getWorkoutRow();
+export async function pause(userId: number): Promise<void> {
+  await reconcile(userId);
+  const w = await getOrCreateWorkout(userId);
   if (w.state !== 'running' || w.started_at === null)
     throw new HttpError(409, 'pausa consentita solo in running');
-  await all("UPDATE workout SET state = 'paused', paused_elapsed_ms = $1 WHERE id = 1", [
+  await all("UPDATE workout SET state = 'paused', paused_elapsed_ms = $1 WHERE user_id = $2", [
     Date.now() - w.started_at,
+    userId,
   ]);
 }
 
-export async function resume(): Promise<void> {
-  const w = await getWorkoutRow();
+export async function resume(userId: number): Promise<void> {
+  const w = await getOrCreateWorkout(userId);
   if (w.state !== 'paused') throw new HttpError(409, 'ripresa consentita solo da paused');
   await all(
-    "UPDATE workout SET state = 'running', started_at = $1, paused_elapsed_ms = NULL WHERE id = 1",
-    [Date.now() - (w.paused_elapsed_ms ?? 0)],
+    "UPDATE workout SET state = 'running', started_at = $1, paused_elapsed_ms = NULL WHERE user_id = $2",
+    [Date.now() - (w.paused_elapsed_ms ?? 0), userId],
   );
 }
 
-export async function stop(): Promise<void> {
-  await reconcile();
-  const w = await getWorkoutRow();
+export async function stop(userId: number): Promise<void> {
+  await reconcile(userId);
+  const w = await getOrCreateWorkout(userId);
   if (w.state !== 'running' && w.state !== 'paused')
     throw new HttpError(409, 'stop consentito solo durante l\'esecuzione');
   const elapsed = elapsedMs(w);
-  await all("UPDATE workout SET state = 'finished', paused_elapsed_ms = $1, finished_at = $2 WHERE id = 1", [
-    elapsed,
-    Date.now(),
-  ]);
+  await all(
+    "UPDATE workout SET state = 'finished', paused_elapsed_ms = $1, finished_at = $2 WHERE user_id = $3",
+    [elapsed, Date.now(), userId],
+  );
 }
 
-export async function reset(): Promise<void> {
+export async function reset(userId: number): Promise<void> {
   await tx(async (c) => {
-    await c.query('DELETE FROM team'); // cascade su membri/esercizi/split
+    await c.query('DELETE FROM team WHERE user_id = $1', [userId]); // cascade su membri/esercizi/split
     await c.query(
       `UPDATE workout SET state = 'onboarding', countdown_ends_at = NULL,
-         started_at = NULL, paused_elapsed_ms = NULL, finished_at = NULL WHERE id = 1`,
+         started_at = NULL, paused_elapsed_ms = NULL, finished_at = NULL WHERE user_id = $1`,
+      [userId],
     );
   });
 }
 
 // ---- esecuzione: chiusura esercizio / undo ----
 
-export async function closeExercise(teamId: number): Promise<void> {
-  await reconcile();
-  const w = await getWorkoutRow();
+export async function closeExercise(userId: number, teamId: number): Promise<void> {
+  await reconcile(userId);
+  const w = await getOrCreateWorkout(userId);
   if (w.state !== 'running' || w.started_at === null)
     throw new HttpError(409, 'chiusura consentita solo in running');
-  const team = (await listTeams()).find((t) => t.id === teamId);
+  const team = (await listTeams(userId)).find((t) => t.id === teamId);
   if (!team) throw new HttpError(404, `team ${teamId} non trovata`);
   const doneRow = await get<{ n: number }>('SELECT COUNT(*) AS n FROM split WHERE team_id = $1', [
     teamId,
@@ -317,8 +345,8 @@ export async function closeExercise(teamId: number): Promise<void> {
   );
 }
 
-export async function undoExercise(teamId: number): Promise<void> {
-  await getTeamRow(teamId);
+export async function undoExercise(userId: number, teamId: number): Promise<void> {
+  await getTeamRow(userId, teamId);
   const last = await get<{ p: number | null }>(
     'SELECT MAX(position) AS p FROM split WHERE team_id = $1',
     [teamId],

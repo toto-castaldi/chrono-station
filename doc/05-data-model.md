@@ -1,9 +1,17 @@
-001. Il modello dati vive su PostgreSQL ed è single-workout: esiste una sola riga `workout` alla volta (coerente con doc/01-architecture.md 004)
+001. Il modello dati vive su PostgreSQL ed è multi-utente, un allenamento per utente (coerente con doc/01-architecture.md 004): ogni utente (`app_user`) ha al più una riga `workout` (`workout.user_id` UNIQUE) e le proprie squadre. Il catalogo esercizi è invece globale e condiviso
 
-002. Schema definito **by code** con Liquibase, in changelog **YAML** versionati in `server/db/changelog/`: master `db.changelog-master.yml` che include i changeset in `changes/` (`001-initial-schema.yml`, `002-seed.yml`). Le tabelle e i dati seed (catalogo esercizi, riga singleton `workout`) NON sono creati dal codice applicativo: sono changeset Liquibase. Per evolvere lo schema si aggiunge **sempre un nuovo changeset** (mai modificare quelli già rilasciati), così l'`update` è idempotente e tracciato in `databasechangelog`. Gli istanti/durate in epoch ms eccedono il range `INTEGER`: sono `BIGINT`. Lo schema risultante (in SQL, a scopo illustrativo — la definizione autoritativa è nel changelog YAML):
+002. Schema definito **by code** con Liquibase, in changelog **YAML** versionati in `server/db/changelog/`: master `db.changelog-master.yml` che include i changeset in `changes/` (`001-initial-schema.yml`, `002-seed.yml`, `003-auth-multitenancy.yml`). Le tabelle e i dati seed (catalogo esercizi) NON sono creati dal codice applicativo: sono changeset Liquibase. Il changeset `003` introduce `app_user`, fa migrare il `workout` da singleton globale (`CHECK (id = 1)`) a uno-per-utente (chiave `user_id`) e partiziona `team` per utente; non crea alcun utente (`app_user` parte vuota: gli utenti si creano a mano, dev e prod) ed elimina i dati del vecchio modello single-tenant (riga singleton `workout` ed eventuali squadre) che nel modello per-utente non avrebbero proprietario. Per evolvere lo schema si aggiunge **sempre un nuovo changeset** (mai modificare quelli già rilasciati), così l'`update` è idempotente e tracciato in `databasechangelog`. Gli istanti/durate in epoch ms eccedono il range `INTEGER`: sono `BIGINT`. Lo schema risultante (in SQL, a scopo illustrativo — la definizione autoritativa è nel changelog YAML):
 
 ```sql
--- catalogo esercizi (placeholder fisso, vedi doc/03-exercises.md)
+-- utenti dell'app: password cifrata bcrypt. Creati solo via seed/admin (doc/00 019).
+CREATE TABLE app_user (
+  id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  username      TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,                -- hash bcrypt, mai la password in chiaro
+  created_at    BIGINT NOT NULL               -- epoch ms
+);
+
+-- catalogo esercizi (placeholder fisso, vedi doc/03-exercises.md) — globale e condiviso
 CREATE TABLE exercise (
   id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   name         TEXT NOT NULL,
@@ -12,9 +20,9 @@ CREATE TABLE exercise (
   unit         TEXT                            -- es. 'm' | 'reps'; NULL se 'none'
 );
 
--- allenamento corrente (singleton). Il server è l'orologio autoritativo (doc/01 007).
+-- allenamento per-utente (un solo workout per utente). Il server è l'orologio autoritativo (doc/01 007).
 CREATE TABLE workout (
-  id                INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  user_id           BIGINT PRIMARY KEY REFERENCES app_user(id) ON DELETE CASCADE,
   state             TEXT NOT NULL,        -- 'onboarding'|'countdown'|'running'|'paused'|'finished'
   countdown_secs    INTEGER NOT NULL DEFAULT 10,
   countdown_ends_at BIGINT,               -- epoch ms: fine countdown / istante elapsed=0
@@ -25,6 +33,7 @@ CREATE TABLE workout (
 
 CREATE TABLE team (
   id       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id  BIGINT NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,  -- partiziona le squadre per utente
   name     TEXT NOT NULL,
   color    TEXT NOT NULL,                 -- colore scelto, es. hex
   position INTEGER NOT NULL               -- ordine di visualizzazione delle corsie
@@ -57,6 +66,11 @@ CREATE TABLE split (
 ```
 
 I `BIGINT` arriverebbero dal driver `pg` come stringa: il server registra un type-parser per riportarli a `number` (i valori — ms epoch, durate — stanno dentro `Number.MAX_SAFE_INTEGER`).
+
+002b. Partizionamento per utente e sessione (doc/01 014):
+- ogni funzione dello store riceve lo `userId` (risolto dall'hook di autenticazione) e filtra per esso: il `workout` per `user_id`, le squadre per `team.user_id`; membri, ordine esercizi e `split` sono raggiunti solo tramite squadre dell'utente (`team_id IN (SELECT id FROM team WHERE user_id = $1)`). L'accesso a una squadra altrui restituisce 404 (ownership check)
+- `getOrCreateWorkout(userId)`: il workout è creato on-demand al primo accesso con `INSERT ... ON CONFLICT (user_id) DO NOTHING` (la PK su `user_id` rende l'upsert sicuro anche in caso di race). Non esiste più una riga `workout` "sempre presente": il `reset` resta un `UPDATE` dello stato + `DELETE` delle squadre dell'utente
+- sessione **stateless**: nessuna tabella di sessione. Lo `userId` viaggia in un cookie httpOnly firmato; la verifica è solo crittografica (HMAC col `SESSION_SECRET`). Login/verifica password con bcrypt (`bcryptjs`)
 
 003. Calcolo del tempo (nessun contatore incrementato in loop, doc/01 007):
 - in `running`: `elapsed_ms = now - started_at`
@@ -101,4 +115,9 @@ export interface WorkoutSnapshot {
   progress: TeamProgress[];
   exercises: Exercise[];        // catalogo
 }
+
+// autenticazione (lo snapshot resta invariato: l'isolamento è lato server)
+export interface User { id: number; username: string; }   // mai il password_hash
+export interface LoginBody { username: string; password: string; }
+export interface AuthResponse { user: User; }
 ```

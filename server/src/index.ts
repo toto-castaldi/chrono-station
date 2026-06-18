@@ -1,11 +1,14 @@
+import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import Fastify from 'fastify';
 import type {
   CreateTeamBody,
+  LoginBody,
   SetExercisesBody,
   StartBody,
   UpdateTeamBody,
 } from '@shared/index';
+import { clearSession, getUser, login, readUserId, setSession } from './auth.js';
 import './db.js';
 import { addClient, broadcastSnapshot, startTicker } from './sse.js';
 import {
@@ -25,7 +28,12 @@ import {
 } from './store.js';
 
 const app = Fastify({ logger: true });
-await app.register(cors, { origin: true });
+// credentials: true necessario per inviare il cookie di sessione (origin:true riflette l'origine, mai '*')
+await app.register(cors, { origin: true, credentials: true });
+await app.register(cookie, {
+  // in prod SESSION_SECRET è obbligatorio (vedi docker-compose.yml); fallback solo per dev
+  secret: process.env.SESSION_SECRET || 'chrono-dev-session-secret-change-me',
+});
 
 app.setErrorHandler((err, _req, reply) => {
   if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
@@ -33,13 +41,39 @@ app.setErrorHandler((err, _req, reply) => {
   return reply.code(500).send({ error: 'internal error' });
 });
 
+// ---- autenticazione: protegge tutto tranne health e login ----
+app.addHook('onRequest', async (req, reply) => {
+  const path = req.url.split('?')[0];
+  if (path === '/api/health' || path === '/api/auth/login') return;
+  const userId = readUserId(req);
+  if (userId === null) return reply.code(401).send({ error: 'non autenticato' });
+  req.userId = userId;
+});
+
+app.post<{ Body: LoginBody }>('/api/auth/login', async (req, reply) => {
+  const user = await login(req.body);
+  setSession(reply, user.id);
+  return { user };
+});
+
+app.post('/api/auth/logout', async (_req, reply) => {
+  clearSession(reply);
+  return { ok: true };
+});
+
+app.get('/api/auth/me', async (req) => {
+  const user = await getUser(req.userId);
+  if (!user) throw new HttpError(401, 'non autenticato');
+  return { user };
+});
+
 // ---- letture ----
 app.get('/api/health', async () => ({ ok: true }));
-app.get('/api/workout', async () => snapshot());
-app.get('/api/exercises', async () => (await snapshot()).exercises);
+app.get('/api/workout', async (req) => snapshot(req.userId));
+app.get('/api/exercises', async (req) => (await snapshot(req.userId)).exercises);
 
 // ---- stream SSE ----
-app.get('/api/stream', async (_req, reply) => {
+app.get('/api/stream', async (req, reply) => {
   reply.raw.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -47,43 +81,43 @@ app.get('/api/stream', async (_req, reply) => {
     'X-Accel-Buffering': 'no',
   });
   reply.raw.write('retry: 2000\n\n');
-  await addClient(reply.raw);
+  await addClient(req.userId, reply.raw);
   reply.hijack();
 });
 
 // ---- onboarding ----
 app.post<{ Body: CreateTeamBody }>('/api/teams', async (req) => {
-  await createTeam(req.body);
-  await broadcastSnapshot('state');
-  return snapshot();
+  await createTeam(req.userId, req.body);
+  await broadcastSnapshot(req.userId, 'state');
+  return snapshot(req.userId);
 });
 
 app.patch<{ Params: { id: string }; Body: UpdateTeamBody }>('/api/teams/:id', async (req) => {
-  await updateTeam(Number(req.params.id), req.body);
-  await broadcastSnapshot('state');
-  return snapshot();
+  await updateTeam(req.userId, Number(req.params.id), req.body);
+  await broadcastSnapshot(req.userId, 'state');
+  return snapshot(req.userId);
 });
 
 app.delete<{ Params: { id: string } }>('/api/teams/:id', async (req) => {
-  await deleteTeam(Number(req.params.id));
-  await broadcastSnapshot('state');
-  return snapshot();
+  await deleteTeam(req.userId, Number(req.params.id));
+  await broadcastSnapshot(req.userId, 'state');
+  return snapshot(req.userId);
 });
 
 app.put<{ Params: { id: string }; Body: SetExercisesBody }>(
   '/api/teams/:id/exercises',
   async (req) => {
-    await setTeamExercises(Number(req.params.id), req.body.exerciseIds);
-    await broadcastSnapshot('state');
-    return snapshot();
+    await setTeamExercises(req.userId, Number(req.params.id), req.body.exerciseIds);
+    await broadcastSnapshot(req.userId, 'state');
+    return snapshot(req.userId);
   },
 );
 
 // ---- controllo esecuzione ----
 app.post<{ Body: StartBody }>('/api/workout/start', async (req) => {
-  await start(req.body?.countdownSecs);
-  await broadcastSnapshot('state');
-  return snapshot();
+  await start(req.userId, req.body?.countdownSecs);
+  await broadcastSnapshot(req.userId, 'state');
+  return snapshot(req.userId);
 });
 
 for (const [path, fn] of [
@@ -92,24 +126,24 @@ for (const [path, fn] of [
   ['stop', stop],
   ['reset', reset],
 ] as const) {
-  app.post(`/api/workout/${path}`, async () => {
-    await fn();
-    await broadcastSnapshot('state');
-    return snapshot();
+  app.post(`/api/workout/${path}`, async (req) => {
+    await fn(req.userId);
+    await broadcastSnapshot(req.userId, 'state');
+    return snapshot(req.userId);
   });
 }
 
 // ---- esecuzione ----
 app.post<{ Params: { id: string } }>('/api/teams/:id/close', async (req) => {
-  await closeExercise(Number(req.params.id));
-  await broadcastSnapshot('team');
-  return snapshot();
+  await closeExercise(req.userId, Number(req.params.id));
+  await broadcastSnapshot(req.userId, 'team');
+  return snapshot(req.userId);
 });
 
 app.post<{ Params: { id: string } }>('/api/teams/:id/undo', async (req) => {
-  await undoExercise(Number(req.params.id));
-  await broadcastSnapshot('team');
-  return snapshot();
+  await undoExercise(req.userId, Number(req.params.id));
+  await broadcastSnapshot(req.userId, 'team');
+  return snapshot(req.userId);
 });
 
 const ticker = startTicker();

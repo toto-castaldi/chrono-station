@@ -4,7 +4,7 @@
 
 003. ad ogni chiusura esercizio viene segnato il tempo parziale memorizzato sul server
 
-004. l'applicazione è mono utilizzatore e gestisce un allenamento alla volta
+004. l'applicazione è multi-utente: ogni utente autenticato gestisce un proprio allenamento alla volta, isolato dagli altri. Lo stato e i dati sono partizionati per utente sia in lettura sia in scrittura
 
 005. Stack: server Node.js + TypeScript (Fastify); client SPA React + Vite + TypeScript; persistenza PostgreSQL (driver `pg`); schema gestito by code con Liquibase; comunicazione realtime dal server via SSE
 
@@ -18,8 +18,10 @@
 
 010. Le azioni dell'operatore (start, chiudi esercizio, undo, pausa, ripresa, stop) sono richieste REST; ognuna è una transazione persistita su PostgreSQL prima di essere riflessa nello stream SSE
 
-011. Modello dati PostgreSQL (single-workout): catalogo esercizi; allenamento corrente con stato e tempi; squadre (nome, colore, membri); ordine esercizi per squadra; parziali registrati (squadra, esercizio, tempo cumulativo). I parziali sono append-only così l'undo è la rimozione dell'ultimo
+011. Modello dati PostgreSQL (un allenamento per utente): utenti (`app_user`, con password cifrata bcrypt); catalogo esercizi globale e condiviso; allenamento dell'utente con stato e tempi (`workout.user_id` UNIQUE); squadre (nome, colore, membri) legate all'utente (`team.user_id`); ordine esercizi per squadra; parziali registrati (squadra, esercizio, tempo cumulativo). I parziali sono append-only così l'undo è la rimozione dell'ultimo. Membri, ordine esercizi e parziali restano partizionati per utente tramite la squadra di appartenenza
 
 012. Al boot il server legge lo stato da PostgreSQL; se un allenamento era in running, riprende calcolando il tempo dall'istante d'inizio persistito (coerente con 001)
 
-013. Deploy: singola istanza del server, nessuno scaling orizzontale (lo stato dell'allenamento è in un unico DB e c'è un solo allenamento). PostgreSQL gira come servizio a parte con un volume di disco persistente; lo schema è applicato/aggiornato da Liquibase (doc/04-devops.md)
+013. Deploy: singola istanza del server, nessuno scaling orizzontale. Lo stato di tutti gli allenamenti è in un unico DB, partizionato per utente. PostgreSQL gira come servizio a parte con un volume di disco persistente; lo schema è applicato/aggiornato da Liquibase (doc/04-devops.md)
+
+014. Autenticazione via cookie di sessione httpOnly firmato (HMAC), scelto perché lo stream SSE (`EventSource`) invia i cookie automaticamente e non supporta header custom. Il cookie trasporta solo lo `userId` (firmato per integrità); la sessione è stateless (nessuna tabella di sessione) e sopravvive a restart/deploy perché il segreto è in env (`SESSION_SECRET`). Login con bcrypt (`bcryptjs`). Un hook globale Fastify (`onRequest`) respinge con 401 ogni richiesta priva di sessione valida, eccetto `/api/health` e `/api/auth/login`; lo `userId` risolto è propagato a tutta la logica di store e all'SSE, che invia a ciascun utente solo gli eventi del proprio allenamento. In dev il cookie non è `secure` (http); in prod sì (HTTPS dietro Caddy)

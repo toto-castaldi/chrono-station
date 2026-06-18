@@ -12,7 +12,7 @@
 
 007. Il database PostgreSQL risiede su un volume persistente (`chrono-pg`) montato nel container `db`: sopravvive ad aggiornamenti e restart dei container (coerente con doc/01-architecture.md 013)
 
-008. I segreti del deploy (chiave SSH, host/utente del server, token per autenticarsi a GHCR dal server) e le credenziali PostgreSQL (`POSTGRES_*` nel file `.env` sul server) sono GitHub Actions secrets / file locale al server, mai nel repository
+008. I segreti del deploy (chiave SSH, host/utente del server, token per autenticarsi a GHCR dal server), le credenziali PostgreSQL (`POSTGRES_*`) e il segreto di firma dei cookie di sessione (`SESSION_SECRET`) stanno nel file `.env` sul server / negli GitHub Actions secrets, mai nel repository. `SESSION_SECRET` è **obbligatorio** in produzione: il container `server` gira con `NODE_ENV=production` (cookie `secure`) e Docker Compose fallisce l'avvio se `SESSION_SECRET` non è impostato. Cambiarlo invalida le sessioni attive (forza un nuovo login). Nessun utente applicativo è seedato: gli utenti (`app_user`, login) si creano a mano sia in dev sia in prod inserendo username + hash bcrypt (doc/05-data-model.md), p.es. tramite un changeset Liquibase dedicato o una INSERT diretta sul DB
 
 009. Le immagini (server, web, migrate) sono taggate con lo SHA del commit oltre che con `latest`, per tracciabilità e per poter fare rollback a una versione precedente
 

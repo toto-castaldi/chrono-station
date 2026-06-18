@@ -1,0 +1,101 @@
+# Autenticazione + multitenancy (doc/05-data-model.md, doc/06-api.md).
+# Ogni utente (app_user) ha il proprio allenamento isolato: lo workout passa
+# da singleton globale (CHECK id=1) a uno-per-utente (workout.user_id UNIQUE),
+# e le squadre vengono partizionate per utente (team.user_id). Nessun utente
+# seedato: gli utenti si creano a mano (dev e prod). I dati del vecchio modello
+# single-tenant (riga singleton workout + eventuali squadre) non hanno un
+# proprietario e vengono quindi eliminati; i workout si creano on-demand al
+# primo accesso di ciascun utente (getOrCreateWorkout).
+databaseChangeLog:
+  - changeSet:
+      id: 003-create-app-user
+      author: chrono
+      changes:
+        # utenti dell'app: username + password cifrata (bcrypt). Creati a mano (seed/admin), nessuna registrazione.
+        - createTable:
+            tableName: app_user
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints: { primaryKey: true, nullable: false }
+              - column:
+                  name: username
+                  type: TEXT
+                  constraints: { nullable: false }
+              - column: # hash bcrypt, mai la password in chiaro
+                  name: password_hash
+                  type: TEXT
+                  constraints: { nullable: false }
+              - column: { name: created_at, type: BIGINT, constraints: { nullable: false } } # epoch ms
+        - addUniqueConstraint:
+            tableName: app_user
+            columnNames: username
+            constraintName: uq_app_user_username
+
+  - changeSet:
+      id: 003-workout-per-user
+      author: chrono
+      changes:
+        # rimuove il vincolo singleton: ora c'è un workout per utente
+        - sql:
+            sql: ALTER TABLE workout DROP CONSTRAINT workout_singleton
+            rollback: ALTER TABLE workout ADD CONSTRAINT workout_singleton CHECK (id = 1)
+        - addColumn:
+            tableName: workout
+            columns:
+              - column: { name: user_id, type: BIGINT }
+        # la vecchia riga singleton (seed 002) non ha proprietario nel modello per-utente: si elimina.
+        # I workout vengono creati on-demand al primo accesso di ogni utente (getOrCreateWorkout).
+        - sql:
+            sql: DELETE FROM workout WHERE user_id IS NULL
+        - addNotNullConstraint:
+            tableName: workout
+            columnName: user_id
+            columnDataType: BIGINT
+        - addForeignKeyConstraint:
+            baseTableName: workout
+            baseColumnNames: user_id
+            referencedTableName: app_user
+            referencedColumnNames: id
+            constraintName: fk_workout_user
+            onDelete: CASCADE
+        # il workout non è più un singleton globale: la chiave diventa user_id.
+        # La PK su user_id è anche il "singleton per utente" e abilita l'upsert
+        # ON CONFLICT (user_id) in getOrCreateWorkout. La vecchia colonna id
+        # (con DEFAULT 1) non serve più ed è rimossa.
+        - dropPrimaryKey:
+            tableName: workout
+            constraintName: workout_pkey
+        - dropColumn:
+            tableName: workout
+            columnName: id
+        - addPrimaryKey:
+            tableName: workout
+            columnNames: user_id
+            constraintName: pk_workout_user
+
+  - changeSet:
+      id: 003-team-per-user
+      author: chrono
+      changes:
+        - addColumn:
+            tableName: team
+            columns:
+              - column: { name: user_id, type: BIGINT }
+        # eventuali squadre del vecchio modello single-tenant non hanno proprietario: si eliminano
+        # (team_member/team_exercise/split seguono via ON DELETE CASCADE)
+        - sql:
+            sql: DELETE FROM team WHERE user_id IS NULL
+        - addNotNullConstraint:
+            tableName: team
+            columnName: user_id
+            columnDataType: BIGINT
+        - addForeignKeyConstraint:
+            baseTableName: team
+            baseColumnNames: user_id
+            referencedTableName: app_user
+            referencedColumnNames: id
+            constraintName: fk_team_user
+            onDelete: CASCADE

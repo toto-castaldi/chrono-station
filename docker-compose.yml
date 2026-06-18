@@ -43,6 +43,9 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-chrono}:${POSTGRES_PASSWORD:-chrono}@db:5432/${POSTGRES_DB:-chrono}
       PORT: "3000"
+      NODE_ENV: production
+      # firma i cookie di sessione: obbligatorio in prod (deploy fallisce se assente)
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET non impostato nel file .env del server}
     expose:
       - "3000"
 

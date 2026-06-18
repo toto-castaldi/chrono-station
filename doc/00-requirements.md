@@ -33,3 +33,7 @@
 017. L'operatore può annullare (undo) l'ultima chiusura di esercizio di una squadra: l'esercizio corrente viene riaperto e il parziale errato scartato
 
 018. In onboarding una squadra può essere aggiunta solo se ha un nome e almeno un membro. Nome e colore devono essere univoci tra le squadre; il confronto del nome è senza distinzione tra maiuscole e minuscole (case-insensitive)
+
+019. L'accesso all'applicazione richiede autenticazione: il client mostra una pagina di login (utente + password) e vi resta finché le credenziali non sono valide. Gli utenti sono censiti sul DB con password cifrata (hash bcrypt) e creati solo via seed/amministrazione: non esiste una pagina di registrazione pubblica. Tutte le chiamate API (e lo stream SSE) sono protette: senza una sessione valida rispondono "non autorizzato" e il client torna alla pagina di login
+
+020. L'applicazione è multi-utente: ogni utente autenticato gestisce il proprio allenamento, isolato da quello degli altri (proprie squadre, esercizi scelti, parziali, stato). Il vincolo "un solo allenamento alla volta" (vedi doc/01 004) vale quindi per ciascun utente. Un utente non può vedere né modificare i dati di un altro

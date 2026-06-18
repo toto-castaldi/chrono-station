@@ -79,6 +79,23 @@ export interface StartBody {
   countdownSecs?: number;
 }
 
+// ---- autenticazione ----
+
+// Utente esposto al client: mai il password_hash.
+export interface User {
+  id: number;
+  username: string;
+}
+
+export interface LoginBody {
+  username: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  user: User;
+}
+
 // ---- eventi SSE ----
 
 export type SseEvent =
