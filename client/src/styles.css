@@ -119,7 +119,7 @@ button.cancel-start { background: transparent; border-color: var(--danger); colo
 .team-card { background: var(--panel); border: 2px solid; border-radius: 10px; overflow: hidden; }
 .team-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: #fff; }
 .team-head span { flex: 1; font-size: 13px; opacity: 0.9; }
-.exercise-order { padding: 8px 12px; }
+.exercise-order { padding: 8px 12px; max-height: 180px; overflow-y: auto; }
 .exercise-order ol { margin: 0; padding-left: 20px; }
 .exercise-order li { margin: 2px 0; }
 .exercise-order .order-row { display: flex; align-items: center; gap: 6px; }
@@ -128,7 +128,16 @@ button.cancel-start { background: transparent; border-color: var(--danger); colo
 .exercise-order .order-actions button { padding: 2px 8px; font-size: 14px; line-height: 1.2; }
 .exercise-order .order-actions button:disabled { opacity: 0.3; }
 .exercise-order .order-actions button.remove { color: var(--danger); }
-.exercise-pick { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 12px; }
+.exercise-pick { padding: 8px 12px; }
+.exercise-pick .pick-search {
+  width: 100%; box-sizing: border-box; margin-bottom: 6px;
+  background: var(--panel); border: 1px solid #2c3040; color: var(--text);
+  padding: 6px 8px; border-radius: 8px; font-size: 13px;
+}
+.exercise-pick .pick-list {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  max-height: 160px; overflow-y: auto;
+}
 .exercise-pick button { padding: 6px 8px; font-size: 13px; }
 .exercise-pick button.on { background: var(--accent); border-color: var(--accent); }
 

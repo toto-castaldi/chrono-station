@@ -47,28 +47,6 @@ export function Onboarding({ snap }: { snap: WorkoutSnapshot }) {
     );
   };
 
-  const exName = (id: number) => snap.exercises.find((e) => e.id === id)?.name ?? `#${id}`;
-
-  const toggleExercise = (teamId: number, current: number[], ex: Exercise) => {
-    const next = current.includes(ex.id)
-      ? current.filter((id) => id !== ex.id)
-      : [...current, ex.id];
-    run(api.setExercises(teamId, { exerciseIds: next }));
-  };
-
-  // Riordino/rimozione del singolo esercizio già in lista (per-posizione).
-  const reorderExercise = (teamId: number, current: number[], from: number, to: number) => {
-    if (to < 0 || to >= current.length) return;
-    const next = [...current];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-    run(api.setExercises(teamId, { exerciseIds: next }));
-  };
-
-  const removeExercise = (teamId: number, current: number[], index: number) => {
-    run(api.setExercises(teamId, { exerciseIds: current.filter((_, i) => i !== index) }));
-  };
-
   const canStart =
     snap.teams.length > 0 && snap.teams.every((t) => t.exercises.length > 0);
 
@@ -115,74 +93,121 @@ export function Onboarding({ snap }: { snap: WorkoutSnapshot }) {
       </section>
 
       <section className="teams">
-        {snap.teams.map((t) => {
-          const chosen = [...t.exercises]
-            .sort((a, b) => a.position - b.position)
-            .map((e) => e.exerciseId);
-          return (
-            <div className="team-card" key={t.id} style={{ borderColor: t.color }}>
-              <div className="team-head" style={{ background: t.color }}>
-                <strong>{t.name}</strong>
-                <span>{t.members.join(', ')}</span>
-                <button onClick={() => run(api.deleteTeam(t.id))}>🗑</button>
-              </div>
-              <div className="exercise-order">
-                {chosen.length === 0 ? (
-                  <em>nessun esercizio selezionato</em>
-                ) : (
-                  <ol>
-                    {chosen.map((id, i) => (
-                      <li key={id}>
-                        <div className="order-row">
-                          <span className="ex-label">{exName(id)}</span>
-                          <span className="order-actions">
-                            <button
-                              disabled={i === 0}
-                              onClick={() => reorderExercise(t.id, chosen, i, i - 1)}
-                              title="sposta su"
-                            >
-                              ↑
-                            </button>
-                            <button
-                              disabled={i === chosen.length - 1}
-                              onClick={() => reorderExercise(t.id, chosen, i, i + 1)}
-                              title="sposta giù"
-                            >
-                              ↓
-                            </button>
-                            <button
-                              className="remove"
-                              onClick={() => removeExercise(t.id, chosen, i)}
-                              title="rimuovi"
-                            >
-                              ✕
-                            </button>
-                          </span>
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
-              <div className="exercise-pick">
-                {snap.exercises.length === 0 ? (
-                  <em>censisci prima gli esercizi</em>
-                ) : (
-                  snap.exercises.map((ex) => (
-                    <button
-                      key={ex.id}
-                      className={chosen.includes(ex.id) ? 'on' : ''}
-                      onClick={() => toggleExercise(t.id, chosen, ex)}
-                    >
-                      {ex.name}
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {snap.teams.map((t) => (
+          <TeamCard key={t.id} team={t} exercises={snap.exercises} run={run} />
+        ))}
       </section>
+    </div>
+  );
+}
+
+// Card di una squadra: ordine esercizi scelti + selettore con ricerca per nome.
+// Il filtro è stato locale alla card così ogni squadra ha la propria ricerca.
+function TeamCard({
+  team,
+  exercises,
+  run,
+}: {
+  team: WorkoutSnapshot['teams'][number];
+  exercises: Exercise[];
+  run: (p: Promise<unknown>) => void;
+}) {
+  const [filter, setFilter] = useState('');
+
+  const chosen = [...team.exercises]
+    .sort((a, b) => a.position - b.position)
+    .map((e) => e.exerciseId);
+  const exName = (id: number) => exercises.find((e) => e.id === id)?.name ?? `#${id}`;
+
+  const q = filter.trim().toLowerCase();
+  const visible = q ? exercises.filter((ex) => ex.name.toLowerCase().includes(q)) : exercises;
+
+  const toggleExercise = (ex: Exercise) => {
+    const next = chosen.includes(ex.id)
+      ? chosen.filter((id) => id !== ex.id)
+      : [...chosen, ex.id];
+    run(api.setExercises(team.id, { exerciseIds: next }));
+  };
+
+  // Riordino/rimozione del singolo esercizio già in lista (per-posizione).
+  const reorderExercise = (from: number, to: number) => {
+    if (to < 0 || to >= chosen.length) return;
+    const next = [...chosen];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    run(api.setExercises(team.id, { exerciseIds: next }));
+  };
+
+  const removeExercise = (index: number) => {
+    run(api.setExercises(team.id, { exerciseIds: chosen.filter((_, i) => i !== index) }));
+  };
+
+  return (
+    <div className="team-card" style={{ borderColor: team.color }}>
+      <div className="team-head" style={{ background: team.color }}>
+        <strong>{team.name}</strong>
+        <span>{team.members.join(', ')}</span>
+        <button onClick={() => run(api.deleteTeam(team.id))}>🗑</button>
+      </div>
+      <div className="exercise-order">
+        {chosen.length === 0 ? (
+          <em>nessun esercizio selezionato</em>
+        ) : (
+          <ol>
+            {chosen.map((id, i) => (
+              <li key={id}>
+                <div className="order-row">
+                  <span className="ex-label">{exName(id)}</span>
+                  <span className="order-actions">
+                    <button disabled={i === 0} onClick={() => reorderExercise(i, i - 1)} title="sposta su">
+                      ↑
+                    </button>
+                    <button
+                      disabled={i === chosen.length - 1}
+                      onClick={() => reorderExercise(i, i + 1)}
+                      title="sposta giù"
+                    >
+                      ↓
+                    </button>
+                    <button className="remove" onClick={() => removeExercise(i)} title="rimuovi">
+                      ✕
+                    </button>
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+      <div className="exercise-pick">
+        {exercises.length === 0 ? (
+          <em>censisci prima gli esercizi</em>
+        ) : (
+          <>
+            <input
+              className="pick-search"
+              placeholder="Filtra esercizi…"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+            <div className="pick-list">
+              {visible.length === 0 ? (
+                <em>nessun esercizio corrisponde</em>
+              ) : (
+                visible.map((ex) => (
+                  <button
+                    key={ex.id}
+                    className={chosen.includes(ex.id) ? 'on' : ''}
+                    onClick={() => toggleExercise(ex)}
+                  >
+                    {ex.name}
+                  </button>
+                ))
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
