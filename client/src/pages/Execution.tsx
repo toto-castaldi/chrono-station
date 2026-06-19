@@ -10,6 +10,8 @@ export function Execution({ snap }: { snap: WorkoutSnapshot }) {
   const progressOf = (teamId: number): TeamProgress | undefined =>
     snap.progress.find((p) => p.teamId === teamId);
 
+  const allFinished = snap.progress.length > 0 && snap.progress.every((p) => p.finished);
+
   const countdownLeft =
     snap.state === 'countdown' && snap.countdownEndsAt
       ? Math.max(0, Math.ceil((snap.countdownEndsAt - Date.now()) / 1000))
@@ -35,6 +37,8 @@ export function Execution({ snap }: { snap: WorkoutSnapshot }) {
           )}
           <button
             className="danger"
+            disabled={!allFinished}
+            title={allFinished ? undefined : 'Tutte le squadre devono finire il circuito'}
             onClick={() => {
               if (confirm('Terminare l\'allenamento?')) run(api.stop());
             }}

@@ -22,7 +22,7 @@
 
 012. Una squadra ha finito quando ha chiuso tutti i propri esercizi; il suo tempo totale coincide con il parziale dell'ultimo esercizio
 
-013. L'allenamento termina quando l'operatore preme Stop (con alert di conferma), che porta alla pagina dei risultati. Anche se tutte le squadre hanno già finito, il controllo della chiusura resta all'operatore
+013. L'allenamento termina quando l'operatore preme Stop (con alert di conferma), che porta alla pagina dei risultati. Lo Stop è consentito solo dopo che **tutte** le squadre hanno completato il proprio circuito (vedi 012): finché anche una sola squadra non ha finito, il pulsante Stop resta disabilitato e il server rifiuta la richiesta. A circuito completato la chiusura resta comunque un'azione manuale dell'operatore (nessuna fine automatica)
 
 014. La pagina dei risultati mostra la classifica delle squadre per tempo totale crescente, con il dettaglio dei tempi parziali per esercizio di ciascuna squadra
 

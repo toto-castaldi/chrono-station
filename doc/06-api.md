@@ -25,7 +25,7 @@
 - `POST /api/workout/start` → da `onboarding`: congela le squadre (doc/00 016), passa a `countdown`; al termine del countdown lo stato diventa `running` con `elapsed=0` (doc/00 015)
 - `POST /api/workout/pause` → da `running` a `paused`
 - `POST /api/workout/resume` → da `paused` a `running`
-- `POST /api/workout/stop` → a `finished` (la conferma è l'alert lato client, doc/00 006/013)
+- `POST /api/workout/stop` → a `finished` (la conferma è l'alert lato client, doc/00 006/013); consentito (da `running` o `paused`) **solo se tutte le squadre hanno finito il circuito** (ogni `TeamProgress.finished`, con almeno una squadra): altrimenti `409` con messaggio «stop consentito solo quando tutte le squadre hanno finito il circuito»
 - `POST /api/workout/reset` → riporta a `onboarding` per un nuovo allenamento (svuota squadre e split)
 
 005. Endpoint REST — durante l'esecuzione:

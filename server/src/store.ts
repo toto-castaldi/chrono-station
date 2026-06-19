@@ -153,6 +153,10 @@ function teamProgress(
   };
 }
 
+function allTeamsFinished(progress: TeamProgress[]): boolean {
+  return progress.length > 0 && progress.every((p) => p.finished);
+}
+
 export async function snapshot(userId: number): Promise<WorkoutSnapshot> {
   await reconcile(userId);
   const w = await getOrCreateWorkout(userId);
@@ -463,6 +467,9 @@ export async function stop(userId: number): Promise<void> {
   const w = await getOrCreateWorkout(userId);
   if (w.state !== 'running' && w.state !== 'paused')
     throw new HttpError(409, 'stop consentito solo durante l\'esecuzione');
+  const snap = await snapshot(userId);
+  if (!allTeamsFinished(snap.progress))
+    throw new HttpError(409, 'stop consentito solo quando tutte le squadre hanno finito il circuito');
   const elapsed = elapsedMs(w);
   await all(
     "UPDATE workout SET state = 'finished', paused_elapsed_ms = $1, finished_at = $2 WHERE user_id = $3",
