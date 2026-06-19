@@ -140,6 +140,10 @@ button.cancel-start { background: transparent; border-color: var(--danger); colo
 }
 .exercise-pick button { padding: 6px 8px; font-size: 13px; }
 .exercise-pick button.on { background: var(--accent); border-color: var(--accent); }
+.exercise-pick button .pick-count {
+  margin-left: 6px; padding: 0 5px; border-radius: 8px; font-size: 11px; font-weight: 700;
+  background: rgba(255, 255, 255, 0.25);
+}
 
 /* ---- execution ---- */
 .execution .global-timer { font-size: 56px; font-variant-numeric: tabular-nums; font-weight: 700; }

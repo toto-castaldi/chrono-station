@@ -100,6 +100,8 @@ I `BIGINT` arriverebbero dal driver `pg` come stringa: il server registra un typ
 - squadra finita quando `COUNT(split) = COUNT(team_exercise)`; tempo totale = `cumulative_ms` dell'ultimo split (doc/00 012)
 - `paused` = `paused_at_elapsed IS NOT NULL` (la squadra ha il proprio contatore in pausa, doc/00 021)
 
+004b. Ripetizioni: l'unicità in `team_exercise` è su `(team_id, position)`, **non** su `exercise_id`: lo **stesso esercizio può comparire a più posizioni** nell'ordine della stessa squadra (es. più tratti di "corsa"). Tutto lo stato derivato è per posizione (vedi 004), quindi le ripetizioni sono gestite senza casi speciali
+
 005. Undo (doc/00 017) = `DELETE` dello split con `position` massima per quella squadra: riapre l'esercizio corrente
 
 006. Tipi TypeScript condivisi in `shared/` (riusati da client e server per coerenza end-to-end):

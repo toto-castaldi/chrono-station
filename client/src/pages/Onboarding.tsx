@@ -122,12 +122,12 @@ function TeamCard({
   const q = filter.trim().toLowerCase();
   const visible = q ? exercises.filter((ex) => ex.name.toLowerCase().includes(q)) : exercises;
 
-  const toggleExercise = (ex: Exercise) => {
-    const next = chosen.includes(ex.id)
-      ? chosen.filter((id) => id !== ex.id)
-      : [...chosen, ex.id];
-    run(api.setExercises(team.id, { exerciseIds: next }));
+  // Lo stesso esercizio può comparire più volte: il chip APPENDE una copia in fondo
+  // all'ordine (la rimozione del singolo avviene nella lista ordinata, per posizione).
+  const addExercise = (ex: Exercise) => {
+    run(api.setExercises(team.id, { exerciseIds: [...chosen, ex.id] }));
   };
+  const countOf = (id: number) => chosen.filter((c) => c === id).length;
 
   // Riordino/rimozione del singolo esercizio già in lista (per-posizione).
   const reorderExercise = (from: number, to: number) => {
@@ -155,7 +155,7 @@ function TeamCard({
         ) : (
           <ol>
             {chosen.map((id, i) => (
-              <li key={id}>
+              <li key={i}>
                 <div className="order-row">
                   <span className="ex-label">{exName(id)}</span>
                   <span className="order-actions">
@@ -194,15 +194,19 @@ function TeamCard({
               {visible.length === 0 ? (
                 <em>nessun esercizio corrisponde</em>
               ) : (
-                visible.map((ex) => (
-                  <button
-                    key={ex.id}
-                    className={chosen.includes(ex.id) ? 'on' : ''}
-                    onClick={() => toggleExercise(ex)}
-                  >
-                    {ex.name}
-                  </button>
-                ))
+                visible.map((ex) => {
+                  const n = countOf(ex.id);
+                  return (
+                    <button
+                      key={ex.id}
+                      className={n > 0 ? 'on' : ''}
+                      onClick={() => addExercise(ex)}
+                    >
+                      {ex.name}
+                      {n > 0 && <span className="pick-count">×{n}</span>}
+                    </button>
+                  );
+                })
               )}
             </div>
           </>

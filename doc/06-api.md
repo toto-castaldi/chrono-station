@@ -14,7 +14,7 @@
 - `POST /api/teams` → crea squadra `{ name, color, members[] }`
 - `PATCH /api/teams/:id` → aggiorna nome/colore/membri/posizione
 - `DELETE /api/teams/:id` → rimuove squadra
-- `PUT /api/teams/:id/exercises` → imposta l'ordine esercizi `{ exerciseIds: number[] }` (ordine = indice nell'array)
+- `PUT /api/teams/:id/exercises` → imposta l'ordine esercizi `{ exerciseIds: number[] }` (ordine = indice nell'array); l'array può contenere **ripetizioni** dello stesso esercizio (più occorrenze a posizioni diverse, doc/00 003)
 - `POST /api/exercises` → censisce un esercizio nel catalogo dell'utente `{ name, targetType, targetValue?, unit? }`; nome univoco per utente (case-insensitive)
 - `PATCH /api/exercises/:id` → aggiorna nome/obiettivo di un esercizio
 - `DELETE /api/exercises/:id` → elimina un esercizio; `409` se è ancora nell'ordine di una squadra (va prima rimosso da quelle squadre)

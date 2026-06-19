@@ -2,7 +2,7 @@
 
 002. Nella pagina di onboarding si censiscono gli esercizi e le squadre che partecipano al circuito. Una squadra può essere composta da una o più persone. Una squadra sceglie anche un colore
 
-003. In onboarding, per ogni squadra, viene definito l'ordine degli esercizi
+003. In onboarding, per ogni squadra, viene definito l'ordine degli esercizi. Lo **stesso esercizio può essere inserito più volte** nell'ordine di una squadra (es. più tratti di corsa): ogni occorrenza è una posizione a sé
 
 004. Gli esercizi vengono scelti dal catalogo per-utente che l'operatore censisce in onboarding (vedi doc/03-exercises.md). Il censimento è un CRUD completo (aggiungi/modifica/elimina, solo in onboarding); un esercizio non è eliminabile finché è nell'ordine di una squadra
 
@@ -28,7 +28,7 @@
 
 015. Dopo lo Start (e relativa conferma) parte un conto alla rovescia iniziale (es. 3-2-1); il contatore globale inizia da zero al termine del countdown e le squadre partono insieme
 
-016. Squadre e membri si definiscono solo in onboarding: dopo lo Start sono congelati e non più modificabili. Anche l'**insieme** degli esercizi di una squadra è congelato; l'**ordine** delle posizioni non ancora chiuse può però essere riordinato in esecuzione per gestire una postazione occupata (vedi 021)
+016. Squadre e membri si definiscono solo in onboarding: dopo lo Start sono congelati e non più modificabili. Anche l'**elenco** degli esercizi (con eventuali ripetizioni, vedi 003) di una squadra è congelato; l'**ordine** delle posizioni non ancora chiuse può però essere riordinato in esecuzione per gestire una postazione occupata (vedi 021)
 
 017. L'operatore può annullare (undo) l'ultima chiusura di esercizio di una squadra: l'esercizio corrente viene riaperto e il parziale errato scartato
 

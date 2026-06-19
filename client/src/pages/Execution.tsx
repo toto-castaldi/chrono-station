@@ -79,12 +79,19 @@ export function Execution({ snap }: { snap: WorkoutSnapshot }) {
             .sort((a, b) => a.position - b.position)
             .find((e) => e.position === pos);
           const ex = currentRef && snap.exercises.find((e) => e.id === currentRef.exerciseId);
-          // esercizi ancora da svolgere oltre quello corrente (postazione occupata → cambio)
-          const remaining = [...t.exercises]
-            .filter((e) => e.position > pos)
-            .sort((a, b) => a.position - b.position)
-            .map((e) => snap.exercises.find((x) => x.id === e.exerciseId))
-            .filter((x): x is NonNullable<typeof x> => Boolean(x));
+          // esercizi ancora da svolgere oltre quello corrente (postazione occupata → cambio).
+          // Dedup per id: lo stesso esercizio può ripetersi a più posizioni, ma nel selettore
+          // va mostrato una volta sola (lo switch porta avanti la prima occorrenza futura).
+          const remaining = Array.from(
+            new Map(
+              [...t.exercises]
+                .filter((e) => e.position > pos)
+                .sort((a, b) => a.position - b.position)
+                .map((e) => snap.exercises.find((x) => x.id === e.exerciseId))
+                .filter((x): x is NonNullable<typeof x> => Boolean(x))
+                .map((x) => [x.id, x] as const),
+            ).values(),
+          );
 
           return (
             <div
