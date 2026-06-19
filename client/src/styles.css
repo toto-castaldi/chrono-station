@@ -120,6 +120,13 @@ button.danger { background: var(--danger); border-color: var(--danger); }
 .team-head span { flex: 1; font-size: 13px; opacity: 0.9; }
 .exercise-order { padding: 8px 12px; }
 .exercise-order ol { margin: 0; padding-left: 20px; }
+.exercise-order li { margin: 2px 0; }
+.exercise-order .order-row { display: flex; align-items: center; gap: 6px; }
+.exercise-order .ex-label { flex: 1; }
+.exercise-order .order-actions { display: flex; gap: 2px; }
+.exercise-order .order-actions button { padding: 2px 8px; font-size: 14px; line-height: 1.2; }
+.exercise-order .order-actions button:disabled { opacity: 0.3; }
+.exercise-order .order-actions button.remove { color: var(--danger); }
 .exercise-pick { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 12px; }
 .exercise-pick button { padding: 6px 8px; font-size: 13px; }
 .exercise-pick button.on { background: var(--accent); border-color: var(--accent); }

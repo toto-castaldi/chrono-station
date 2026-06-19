@@ -56,6 +56,19 @@ export function Onboarding({ snap }: { snap: WorkoutSnapshot }) {
     run(api.setExercises(teamId, { exerciseIds: next }));
   };
 
+  // Riordino/rimozione del singolo esercizio già in lista (per-posizione).
+  const reorderExercise = (teamId: number, current: number[], from: number, to: number) => {
+    if (to < 0 || to >= current.length) return;
+    const next = [...current];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    run(api.setExercises(teamId, { exerciseIds: next }));
+  };
+
+  const removeExercise = (teamId: number, current: number[], index: number) => {
+    run(api.setExercises(teamId, { exerciseIds: current.filter((_, i) => i !== index) }));
+  };
+
   const canStart =
     snap.teams.length > 0 && snap.teams.every((t) => t.exercises.length > 0);
 
@@ -118,8 +131,35 @@ export function Onboarding({ snap }: { snap: WorkoutSnapshot }) {
                   <em>nessun esercizio selezionato</em>
                 ) : (
                   <ol>
-                    {chosen.map((id) => (
-                      <li key={id}>{exName(id)}</li>
+                    {chosen.map((id, i) => (
+                      <li key={id}>
+                        <div className="order-row">
+                          <span className="ex-label">{exName(id)}</span>
+                          <span className="order-actions">
+                            <button
+                              disabled={i === 0}
+                              onClick={() => reorderExercise(t.id, chosen, i, i - 1)}
+                              title="sposta su"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              disabled={i === chosen.length - 1}
+                              onClick={() => reorderExercise(t.id, chosen, i, i + 1)}
+                              title="sposta giù"
+                            >
+                              ↓
+                            </button>
+                            <button
+                              className="remove"
+                              onClick={() => removeExercise(t.id, chosen, i)}
+                              title="rimuovi"
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        </div>
+                      </li>
                     ))}
                   </ol>
                 )}
