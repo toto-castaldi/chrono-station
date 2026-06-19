@@ -103,6 +103,8 @@ export const api = {
   resume: () => req<WorkoutSnapshot>('POST', '/api/workout/resume'),
   stop: () => req<WorkoutSnapshot>('POST', '/api/workout/stop'),
   reset: () => req<WorkoutSnapshot>('POST', '/api/workout/reset'),
+  // Falsa partenza (doc/06): torna a onboarding mantenendo squadre/esercizi, azzera i parziali.
+  cancel: () => req<WorkoutSnapshot>('POST', '/api/workout/cancel'),
 
   close: (id: number) => req<WorkoutSnapshot>('POST', `/api/teams/${id}/close`),
   undo: (id: number) => req<WorkoutSnapshot>('POST', `/api/teams/${id}/undo`),

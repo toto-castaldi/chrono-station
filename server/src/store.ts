@@ -514,6 +514,31 @@ export async function reset(userId: number): Promise<void> {
   });
 }
 
+// Falsa partenza (doc/00 014): torna a onboarding mantenendo squadre/esercizi, azzerando
+// solo il progresso (split + pausa per-squadra). A differenza di reset() non cancella le
+// squadre. Consentito solo durante l'esecuzione (countdown/running/paused).
+export async function cancel(userId: number): Promise<void> {
+  const w = await getOrCreateWorkout(userId);
+  if (w.state === 'onboarding' || w.state === 'finished')
+    throw new HttpError(409, 'annulla consentito solo durante countdown/running/paused');
+  await tx(async (c) => {
+    // azzera i parziali, mantenendo squadre/membri/esercizi/ordini
+    await c.query('DELETE FROM split WHERE team_id IN (SELECT id FROM team WHERE user_id = $1)', [
+      userId,
+    ]);
+    // reset difensivo della pausa per-squadra (come in start())
+    await c.query(
+      'UPDATE team SET paused_accum_ms = 0, paused_at_elapsed = NULL WHERE user_id = $1',
+      [userId],
+    );
+    await c.query(
+      `UPDATE workout SET state = 'onboarding', countdown_ends_at = NULL,
+         started_at = NULL, paused_elapsed_ms = NULL, finished_at = NULL WHERE user_id = $1`,
+      [userId],
+    );
+  });
+}
+
 // ---- esecuzione: chiusura esercizio / undo ----
 
 export async function closeExercise(userId: number, teamId: number): Promise<void> {

@@ -27,6 +27,7 @@
 - `POST /api/workout/resume` → da `paused` a `running`
 - `POST /api/workout/stop` → a `finished` (la conferma è l'alert lato client, doc/00 006/013); consentito (da `running` o `paused`) **solo se tutte le squadre hanno finito il circuito** (ogni `TeamProgress.finished`, con almeno una squadra): altrimenti `409` con messaggio «stop consentito solo quando tutte le squadre hanno finito il circuito»
 - `POST /api/workout/reset` → riporta a `onboarding` per un nuovo allenamento (svuota squadre e split)
+- `POST /api/workout/cancel` → falsa partenza (doc/00 022): da `countdown`/`running`/`paused` riporta a `onboarding` **mantenendo** squadre ed esercizi, azzerando solo il progresso (cancella gli split e resetta la pausa per-squadra). `409` se invocato da `onboarding` o `finished`. A differenza di `reset` non svuota le squadre
 
 005. Endpoint REST — durante l'esecuzione:
 - `POST /api/teams/:id/close` → chiude l'esercizio corrente della squadra: registra lo split col tempo attivo della squadra al netto delle pause individuali (doc/00 009, doc/05). Per evitare doppie chiusure, il server registra sempre e solo la `position` successiva attesa. `409` se la squadra è in pausa individuale (va prima ripresa)
@@ -42,7 +43,7 @@
 007. Stream SSE — `GET /api/stream` (autenticato via cookie; ogni utente riceve solo gli eventi del proprio allenamento, tick inclusi):
 - alla connessione: evento `snapshot` con il `WorkoutSnapshot` completo (reload-safe)
 - `tick`: `{ elapsedMs, state }` ogni ~1s mentre `running` (il client può interpolare tra i tick, ma l'autorità è il server, doc/01 009)
-- `state`: ad ogni cambio di stato (start/countdown/pausa/ripresa/stop)
+- `state`: ad ogni cambio di stato (start/countdown/pausa/ripresa/stop/cancel)
 - `team`: ad ogni `close`/`undo`/`pause`/`resume`/`switch` di squadra, con il `TeamProgress` aggiornato (incluso il flag `paused`)
 
 008. Risultati: la pagina usa il `WorkoutSnapshot` in stato `finished`; la classifica si ottiene ordinando le squadre `finished` per `totalMs` crescente, con i `splits` come dettaglio parziali (doc/00 014)

@@ -92,6 +92,8 @@ I `BIGINT` arriverebbero dal driver `pg` come stringa: il server registra un typ
 - alla chiusura di un esercizio lo split registra `cumulative_ms = team_elapsed` (non l'elapsed globale): i parziali escludono il tempo di pausa individuale. La chiusura è rifiutata mentre la squadra è in pausa
 - start azzera in modo difensivo `paused_accum_ms`/`paused_at_elapsed` delle squadre; il `reset` le elimina con le squadre
 
+003c. Falsa partenza (doc/00 022, `cancel`): transizione legale da `countdown`/`running`/`paused` a `onboarding`. A differenza di `reset` **non** elimina le squadre: in transazione cancella i `split` delle squadre dell'utente, azzera `paused_accum_ms`/`paused_at_elapsed` e riporta `workout` a `onboarding` (con `countdown_ends_at`/`started_at`/`paused_elapsed_ms`/`finished_at` a NULL). Squadre, membri, esercizi e ordini restano intatti
+
 004. Stato derivato di una squadra (non duplicato in tabella, calcolato dai `split`):
 - esercizio corrente = `team_exercise` con `position = COUNT(split della squadra)`
 - avanzamento = `COUNT(split) / COUNT(team_exercise)`

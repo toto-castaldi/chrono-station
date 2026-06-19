@@ -17,6 +17,7 @@ import './db.js';
 import { addClient, broadcastSnapshot, startTicker } from './sse.js';
 import {
   HttpError,
+  cancel,
   closeExercise,
   createExercise,
   createTeam,
@@ -188,6 +189,7 @@ for (const [path, fn] of [
   ['resume', resume],
   ['stop', stop],
   ['reset', reset],
+  ['cancel', cancel],
 ] as const) {
   app.post(`/api/workout/${path}`, async (req) => {
     await fn(req.userId);

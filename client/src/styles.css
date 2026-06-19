@@ -64,6 +64,7 @@ button {
 button:disabled { opacity: 0.4; cursor: not-allowed; }
 button.primary { background: var(--accent); border-color: var(--accent); }
 button.danger { background: var(--danger); border-color: var(--danger); }
+button.cancel-start { background: transparent; border-color: var(--danger); color: var(--danger); }
 
 .error {
   background: #3a1622;

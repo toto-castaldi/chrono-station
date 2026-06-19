@@ -47,6 +47,21 @@ export function Execution({ snap }: { snap: WorkoutSnapshot }) {
           >
             ⏹ Stop
           </button>
+          <button
+            className="cancel-start"
+            title="Torna alla preparazione mantenendo squadre ed esercizi"
+            onClick={() => {
+              if (
+                confirm(
+                  'Annullare la partenza e tornare alla preparazione? ' +
+                    'Squadre ed esercizi restano salvati; i parziali registrati saranno cancellati.',
+                )
+              )
+                run(api.cancel());
+            }}
+          >
+            ✕ Annulla
+          </button>
         </div>
       </header>
 
