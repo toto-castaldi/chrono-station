@@ -5,6 +5,8 @@ import { formatTime } from '../lib/format.js';
 
 export function Execution({ snap }: { snap: WorkoutSnapshot }) {
   const [err, setErr] = useState<string | null>(null);
+  // id della squadra il cui selettore "cambia esercizio" è aperto (uno alla volta)
+  const [chooser, setChooser] = useState<number | null>(null);
   const run = (p: Promise<unknown>) => p.catch((e: Error) => setErr(e.message));
 
   const progressOf = (teamId: number): TeamProgress | undefined =>
@@ -56,13 +58,25 @@ export function Execution({ snap }: { snap: WorkoutSnapshot }) {
           const total = p?.total ?? t.exercises.length;
           const pos = p?.currentPosition ?? 0;
           const finished = p?.finished ?? false;
+          const paused = p?.paused ?? false;
+          const running = snap.state === 'running';
           const currentRef = [...t.exercises]
             .sort((a, b) => a.position - b.position)
             .find((e) => e.position === pos);
           const ex = currentRef && snap.exercises.find((e) => e.id === currentRef.exerciseId);
+          // esercizi ancora da svolgere oltre quello corrente (postazione occupata → cambio)
+          const remaining = [...t.exercises]
+            .filter((e) => e.position > pos)
+            .sort((a, b) => a.position - b.position)
+            .map((e) => snap.exercises.find((x) => x.id === e.exerciseId))
+            .filter((x): x is NonNullable<typeof x> => Boolean(x));
 
           return (
-            <div className="lane" key={t.id} style={{ borderColor: t.color }}>
+            <div
+              className={`lane${paused ? ' paused' : ''}`}
+              key={t.id}
+              style={{ borderColor: t.color }}
+            >
               <div className="lane-head" style={{ background: t.color }}>
                 <strong>{t.name}</strong>
                 <span>{pos}/{total}</span>
@@ -87,11 +101,45 @@ export function Execution({ snap }: { snap: WorkoutSnapshot }) {
                 ) : (
                   <em>—</em>
                 )}
+
+                {paused && (
+                  <div className="lane-pause-overlay">
+                    <div className="pause-label">⏸ IN PAUSA</div>
+                    <button className="resume-team" disabled={!running} onClick={() => run(api.resumeTeam(t.id))}>
+                      ▶ Riprendi
+                    </button>
+                  </div>
+                )}
+
+                {chooser === t.id && !paused && (
+                  <div className="ex-chooser">
+                    <div className="ex-chooser-head">
+                      <span>Cambia esercizio</span>
+                      <button className="ex-chooser-close" onClick={() => setChooser(null)}>✕</button>
+                    </div>
+                    {remaining.length === 0 ? (
+                      <em>nessun altro esercizio da svolgere</em>
+                    ) : (
+                      remaining.map((rx) => (
+                        <button
+                          key={rx.id}
+                          className="ex-chooser-item"
+                          onClick={() => {
+                            setChooser(null);
+                            run(api.switchExercise(t.id, rx.id));
+                          }}
+                        >
+                          {rx.name}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
               <div className="lane-actions">
                 <button
                   className="close"
-                  disabled={finished || snap.state !== 'running'}
+                  disabled={finished || paused || !running}
                   onClick={() => run(api.close(t.id))}
                 >
                   Chiudi esercizio
@@ -104,6 +152,26 @@ export function Execution({ snap }: { snap: WorkoutSnapshot }) {
                   ↶ Undo
                 </button>
               </div>
+              {!finished && (
+                <div className="lane-actions secondary">
+                  {paused ? (
+                    <button className="resume-team" disabled={!running} onClick={() => run(api.resumeTeam(t.id))}>
+                      ▶ Riprendi squadra
+                    </button>
+                  ) : (
+                    <button className="pause-team" disabled={!running} onClick={() => run(api.pauseTeam(t.id))}>
+                      ⏸ Pausa squadra
+                    </button>
+                  )}
+                  <button
+                    className="switch"
+                    disabled={paused || !running || remaining.length === 0}
+                    onClick={() => setChooser((c) => (c === t.id ? null : t.id))}
+                  >
+                    ⇄ Cambia esercizio
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}

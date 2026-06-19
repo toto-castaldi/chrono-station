@@ -49,6 +49,9 @@ export interface TeamProgress {
   finished: boolean;
   totalMs?: number;
   splits: Split[];
+  // Pausa per-squadra (doc/05): true mentre il contatore della sola squadra è fermo,
+  // indipendentemente dall'orologio globale.
+  paused: boolean;
 }
 
 export interface WorkoutSnapshot {
@@ -77,6 +80,12 @@ export interface UpdateTeamBody {
 
 export interface SetExercisesBody {
   exerciseIds: number[];
+}
+
+// Cambio esercizio in esecuzione: la squadra trova la postazione occupata e svolge
+// un altro esercizio tra quelli ancora da fare (scambio di posizione).
+export interface SwitchExerciseBody {
+  exerciseId: number;
 }
 
 // Censimento esercizi (catalogo per-utente, definito in onboarding).

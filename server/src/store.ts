@@ -59,6 +59,15 @@ function elapsedMs(w: WorkoutRow): number {
   return 0; // onboarding / countdown
 }
 
+// Tempo attivo della squadra, al netto delle proprie pause individuali. La pausa per-squadra
+// è misurata in unità di elapsed globale, quindi si compone con la pausa globale (durante la
+// quale elapsedMs è già congelato). Vedi doc/05-data-model.md.
+function teamElapsedMs(w: WorkoutRow, team: TeamRow): number {
+  const g = elapsedMs(w);
+  const live = team.paused_at_elapsed !== null ? g - team.paused_at_elapsed : 0;
+  return g - team.paused_accum_ms - live;
+}
+
 // ---- letture ----
 
 interface ExerciseRow {
@@ -101,6 +110,9 @@ interface TeamRow {
   name: string;
   color: string;
   position: number;
+  // Pausa per-squadra (changelog 006): misurata in unità di elapsed globale.
+  paused_accum_ms: number;
+  paused_at_elapsed: number | null;
 }
 
 async function getTeamRow(userId: number, id: number): Promise<TeamRow> {
@@ -139,6 +151,7 @@ async function listTeams(userId: number): Promise<Team[]> {
 function teamProgress(
   team: Team,
   splits: Array<{ position: number; cumulativeMs: number }>,
+  paused: boolean,
 ): TeamProgress {
   const total = team.exercises.length;
   const currentPosition = splits.length;
@@ -150,6 +163,7 @@ function teamProgress(
     finished,
     totalMs: finished ? splits[splits.length - 1].cumulativeMs : undefined,
     splits,
+    paused,
   };
 }
 
@@ -172,12 +186,20 @@ export async function snapshot(userId: number): Promise<WorkoutSnapshot> {
     list.push({ position: s.position, cumulativeMs: s.cumulative_ms });
     splitsByTeam.set(s.team_id, list);
   }
+  // listTeams ritorna Team (shared) senza i campi pausa: leggiamo qui il flag pausa per-squadra.
+  const pausedRows = await all<{ id: number; paused_at_elapsed: number | null }>(
+    'SELECT id, paused_at_elapsed FROM team WHERE user_id = $1',
+    [userId],
+  );
+  const pausedById = new Map(pausedRows.map((r) => [r.id, r.paused_at_elapsed !== null]));
   return {
     state: w.state,
     elapsedMs: elapsedMs(w),
     countdownEndsAt: w.state === 'countdown' ? (w.countdown_ends_at ?? undefined) : undefined,
     teams,
-    progress: teams.map((t) => teamProgress(t, splitsByTeam.get(t.id) ?? [])),
+    progress: teams.map((t) =>
+      teamProgress(t, splitsByTeam.get(t.id) ?? [], pausedById.get(t.id) ?? false),
+    ),
     exercises: await listExercises(userId),
   };
 }
@@ -433,6 +455,10 @@ export async function start(userId: number, countdownSecs?: number): Promise<voi
     throw new HttpError(409, 'ogni squadra deve avere almeno un esercizio');
   const secs = countdownSecs ?? w.countdown_secs;
   const endsAt = Date.now() + secs * 1000;
+  // reset difensivo della pausa per-squadra (le squadre persistono onboarding→start)
+  await all('UPDATE team SET paused_accum_ms = 0, paused_at_elapsed = NULL WHERE user_id = $1', [
+    userId,
+  ]);
   await all(
     `UPDATE workout
        SET state = 'countdown', countdown_secs = $1, countdown_ends_at = $2,
@@ -495,17 +521,20 @@ export async function closeExercise(userId: number, teamId: number): Promise<voi
   const w = await getOrCreateWorkout(userId);
   if (w.state !== 'running' || w.started_at === null)
     throw new HttpError(409, 'chiusura consentita solo in running');
-  const team = (await listTeams(userId)).find((t) => t.id === teamId);
-  if (!team) throw new HttpError(404, `team ${teamId} non trovata`);
+  const teamRow = await getTeamRow(userId, teamId); // 404 + colonne pausa
+  if (teamRow.paused_at_elapsed !== null)
+    throw new HttpError(409, 'squadra in pausa: riprendila prima di chiudere');
+  const team = (await listTeams(userId)).find((t) => t.id === teamId)!;
   const doneRow = await get<{ n: number }>('SELECT COUNT(*) AS n FROM split WHERE team_id = $1', [
     teamId,
   ]);
   const done = doneRow?.n ?? 0;
   if (done >= team.exercises.length) throw new HttpError(409, 'la squadra ha già finito');
-  // registra sempre e solo la posizione successiva attesa (idempotenza sul doppio tap)
+  // registra sempre e solo la posizione successiva attesa (idempotenza sul doppio tap).
+  // Il parziale è il tempo ATTIVO della squadra, al netto delle sue pause individuali.
   await all(
     'INSERT INTO split (team_id, position, cumulative_ms, recorded_at) VALUES ($1, $2, $3, $4)',
-    [teamId, done, Date.now() - w.started_at, Date.now()],
+    [teamId, done, teamElapsedMs(w, teamRow), Date.now()],
   );
 }
 
@@ -517,4 +546,86 @@ export async function undoExercise(userId: number, teamId: number): Promise<void
   );
   if (!last || last.p === null) throw new HttpError(409, 'nessuna chiusura da annullare');
   await all('DELETE FROM split WHERE team_id = $1 AND position = $2', [teamId, last.p]);
+}
+
+// ---- esecuzione: postazione occupata (pausa per-squadra / cambio esercizio) ----
+
+/** Conta gli esercizi già chiusi e il totale del circuito della squadra. */
+async function teamCounts(teamId: number): Promise<{ done: number; total: number }> {
+  const doneRow = await get<{ n: number }>('SELECT COUNT(*) AS n FROM split WHERE team_id = $1', [
+    teamId,
+  ]);
+  const totalRow = await get<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM team_exercise WHERE team_id = $1',
+    [teamId],
+  );
+  return { done: doneRow?.n ?? 0, total: totalRow?.n ?? 0 };
+}
+
+/** Mette in pausa SOLO il contatore di questa squadra; l'orologio globale prosegue. */
+export async function pauseTeam(userId: number, teamId: number): Promise<void> {
+  await reconcile(userId);
+  const w = await getOrCreateWorkout(userId);
+  if (w.state !== 'running' || w.started_at === null)
+    throw new HttpError(409, 'pausa squadra consentita solo in running');
+  const team = await getTeamRow(userId, teamId);
+  if (team.paused_at_elapsed !== null) throw new HttpError(409, 'squadra già in pausa');
+  const { done, total } = await teamCounts(teamId);
+  if (done >= total) throw new HttpError(409, 'la squadra ha già finito');
+  await all('UPDATE team SET paused_at_elapsed = $1 WHERE id = $2', [elapsedMs(w), teamId]);
+}
+
+/** Riprende il contatore della squadra, scontando l'intervallo di pausa individuale. */
+export async function resumeTeam(userId: number, teamId: number): Promise<void> {
+  await reconcile(userId);
+  const w = await getOrCreateWorkout(userId);
+  if (w.state !== 'running' || w.started_at === null)
+    throw new HttpError(409, 'ripresa squadra consentita solo in running');
+  const team = await getTeamRow(userId, teamId);
+  if (team.paused_at_elapsed === null) throw new HttpError(409, 'la squadra non è in pausa');
+  await all(
+    `UPDATE team
+       SET paused_accum_ms = paused_accum_ms + ($1 - paused_at_elapsed), paused_at_elapsed = NULL
+     WHERE id = $2`,
+    [elapsedMs(w), teamId],
+  );
+}
+
+/**
+ * Postazione occupata: la squadra svolge un altro esercizio tra quelli ancora da fare.
+ * Scambio di posizione — l'esercizio scelto va alla posizione corrente, quello occupato
+ * prende il posto del prescelto. Si tocca solo `exercise_id` (l'unique è su team_id,position).
+ */
+export async function switchTeamExercise(
+  userId: number,
+  teamId: number,
+  exerciseId: number,
+): Promise<void> {
+  await reconcile(userId);
+  const w = await getOrCreateWorkout(userId);
+  if (w.state !== 'running' || w.started_at === null)
+    throw new HttpError(409, 'cambio esercizio consentito solo in running');
+  await getTeamRow(userId, teamId); // ownership + 404
+  const refs = await all<{ exercise_id: number; position: number }>(
+    'SELECT exercise_id, position FROM team_exercise WHERE team_id = $1 ORDER BY position',
+    [teamId],
+  );
+  const { done: cur } = await teamCounts(teamId);
+  if (cur >= refs.length) throw new HttpError(409, 'la squadra ha già finito');
+  // prima occorrenza futura (posizione > corrente) dell'esercizio scelto
+  const target = refs.find((r) => r.exercise_id === exerciseId && r.position > cur);
+  if (!target) throw new HttpError(400, 'esercizio non disponibile tra quelli ancora da svolgere');
+  const current = refs.find((r) => r.position === cur)!;
+  await tx(async (c) => {
+    await c.query('UPDATE team_exercise SET exercise_id = $1 WHERE team_id = $2 AND position = $3', [
+      target.exercise_id,
+      teamId,
+      current.position,
+    ]);
+    await c.query('UPDATE team_exercise SET exercise_id = $1 WHERE team_id = $2 AND position = $3', [
+      current.exercise_id,
+      teamId,
+      target.position,
+    ]);
+  });
 }

@@ -28,7 +28,7 @@
 
 015. Dopo lo Start (e relativa conferma) parte un conto alla rovescia iniziale (es. 3-2-1); il contatore globale inizia da zero al termine del countdown e le squadre partono insieme
 
-016. Squadre, membri e ordine degli esercizi si definiscono solo in onboarding: dopo lo Start sono congelati e non più modificabili
+016. Squadre e membri si definiscono solo in onboarding: dopo lo Start sono congelati e non più modificabili. Anche l'**insieme** degli esercizi di una squadra è congelato; l'**ordine** delle posizioni non ancora chiuse può però essere riordinato in esecuzione per gestire una postazione occupata (vedi 021)
 
 017. L'operatore può annullare (undo) l'ultima chiusura di esercizio di una squadra: l'esercizio corrente viene riaperto e il parziale errato scartato
 
@@ -37,3 +37,7 @@
 019. L'accesso all'applicazione richiede autenticazione: il client mostra una pagina di login (utente + password) e vi resta finché le credenziali non sono valide. Gli utenti sono censiti sul DB con password cifrata (hash bcrypt) e creati solo via seed/amministrazione: non esiste una pagina di registrazione pubblica. Tutte le chiamate API (e lo stream SSE) sono protette: senza una sessione valida rispondono "non autorizzato" e il client torna alla pagina di login
 
 020. L'applicazione è multi-utente: ogni utente autenticato gestisce il proprio allenamento, isolato da quello degli altri (proprie squadre, esercizi scelti, parziali, stato). Il vincolo "un solo allenamento alla volta" (vedi doc/01 004) vale quindi per ciascun utente. Un utente non può vedere né modificare i dati di un altro
+
+021. **Postazione occupata.** Può capitare che una squadra trovi occupata la postazione del proprio esercizio corrente. L'operatore ha due azioni per-squadra, alternative tra loro:
+- **Cambia esercizio**: la squadra svolge subito un altro esercizio tra quelli che deve ancora fare. È uno **scambio di posizione** — l'esercizio scelto va alla posizione corrente e quello occupato prende il posto del prescelto. L'insieme degli esercizi resta invariato, cambia solo l'ordine delle posizioni non ancora chiuse (vedi 016)
+- **Pausa squadra**: mette in pausa **solo** il contatore di quella squadra. L'orologio globale e le altre squadre proseguono; alla ripresa il tempo della squadra riparte da dove era. I parziali registrati dopo una pausa individuale **non** includono il tempo trascorso in pausa. Mentre è in pausa la squadra non può chiudere esercizi. È distinta dalla pausa globale (vedi 011), che invece ferma tutte le squadre

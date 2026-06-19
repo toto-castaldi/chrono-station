@@ -12,7 +12,7 @@
 
 007. Il server è l'unico orologio autoritativo. Non incrementa un contatore in un loop: memorizza l'istante d'inizio e gli intervalli di pausa, e calcola il tempo trascorso in funzione del wall-clock. Così il tempo è sempre ricostruibile dopo un riavvio
 
-008. Lo stato dell'allenamento è una macchina a stati: onboarding → countdown → running ⇄ paused → finished
+008. Lo stato dell'allenamento è una macchina a stati GLOBALE: onboarding → countdown → running ⇄ paused → finished. La pausa per-squadra (doc/00 021, postazione occupata) NON è uno stato globale: è uno stato per-squadra persistito su colonne di `team` (`paused_at_elapsed`/`paused_accum_ms`), misurato in unità di elapsed globale così da comporsi con la pausa globale. Lascia l'orologio globale in `running`
 
 009. Il client riceve via SSE tick periodici col tempo globale e gli eventi di cambio stato (start, countdown, pausa, ripresa, chiusura esercizio, undo, stop). Tra un tick e l'altro il client può interpolare localmente per fluidità, ma il valore autoritativo resta quello del server
 

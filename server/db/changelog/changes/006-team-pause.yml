@@ -1,0 +1,20 @@
+# Pausa per-squadra in esecuzione (doc/00-requirements.md, doc/05-data-model.md, doc/06-api.md).
+# Quando una squadra trova la postazione occupata, l'operatore può mettere in pausa SOLO il
+# contatore di quella squadra senza fermare l'orologio globale. Le durate sono misurate in
+# unità di elapsed globale, così da comporsi automaticamente con la pausa globale.
+#   paused_accum_ms   = somma degli intervalli (in elapsed globale) già trascorsi in pausa individuale
+#   paused_at_elapsed = elapsed globale all'inizio della pausa corrente; NULL se la squadra non è in pausa
+databaseChangeLog:
+  - changeSet:
+      id: 006-team-pause
+      author: chrono
+      changes:
+        - addColumn:
+            tableName: team
+            columns:
+              - column:
+                  name: paused_accum_ms
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints: { nullable: false }
+              - column: { name: paused_at_elapsed, type: BIGINT }

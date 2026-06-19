@@ -8,6 +8,7 @@ import type {
   SetExerciseImageBody,
   SetExercisesBody,
   StartBody,
+  SwitchExerciseBody,
   UpdateExerciseBody,
   UpdateTeamBody,
 } from '@shared/index';
@@ -24,13 +25,16 @@ import {
   deleteTeam,
   getExerciseImage,
   pause,
+  pauseTeam,
   reset,
   resume,
+  resumeTeam,
   setExerciseImage,
   setTeamExercises,
   snapshot,
   start,
   stop,
+  switchTeamExercise,
   undoExercise,
   updateExercise,
   updateTeam,
@@ -204,6 +208,28 @@ app.post<{ Params: { id: string } }>('/api/teams/:id/undo', async (req) => {
   await broadcastSnapshot(req.userId, 'team');
   return snapshot(req.userId);
 });
+
+// Postazione occupata: pausa/ripresa del solo contatore della squadra; cambio esercizio.
+app.post<{ Params: { id: string } }>('/api/teams/:id/pause', async (req) => {
+  await pauseTeam(req.userId, Number(req.params.id));
+  await broadcastSnapshot(req.userId, 'team');
+  return snapshot(req.userId);
+});
+
+app.post<{ Params: { id: string } }>('/api/teams/:id/resume', async (req) => {
+  await resumeTeam(req.userId, Number(req.params.id));
+  await broadcastSnapshot(req.userId, 'team');
+  return snapshot(req.userId);
+});
+
+app.post<{ Params: { id: string }; Body: SwitchExerciseBody }>(
+  '/api/teams/:id/switch',
+  async (req) => {
+    await switchTeamExercise(req.userId, Number(req.params.id), req.body.exerciseId);
+    await broadcastSnapshot(req.userId, 'team');
+    return snapshot(req.userId);
+  },
+);
 
 const ticker = startTicker();
 const port = Number(process.env.PORT ?? 3000);

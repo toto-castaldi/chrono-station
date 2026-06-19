@@ -29,8 +29,13 @@
 - `POST /api/workout/reset` → riporta a `onboarding` per un nuovo allenamento (svuota squadre e split)
 
 005. Endpoint REST — durante l'esecuzione:
-- `POST /api/teams/:id/close` → chiude l'esercizio corrente della squadra: registra lo split col tempo cumulativo (doc/00 009). Per evitare doppie chiusure, il server registra sempre e solo la `position` successiva attesa
+- `POST /api/teams/:id/close` → chiude l'esercizio corrente della squadra: registra lo split col tempo attivo della squadra al netto delle pause individuali (doc/00 009, doc/05). Per evitare doppie chiusure, il server registra sempre e solo la `position` successiva attesa. `409` se la squadra è in pausa individuale (va prima ripresa)
 - `POST /api/teams/:id/undo` → annulla l'ultima chiusura della squadra (doc/00 017)
+
+005b. Endpoint REST — postazione occupata (doc/00 021), consentiti solo con `state = 'running'`:
+- `POST /api/teams/:id/pause` → mette in pausa il solo contatore della squadra; `409` se già in pausa o se la squadra ha già finito. Non tocca l'orologio globale
+- `POST /api/teams/:id/resume` → riprende il contatore della squadra scontando l'intervallo di pausa; `409` se la squadra non è in pausa
+- `POST /api/teams/:id/switch` ← `{ exerciseId }` → scambia l'esercizio corrente con quello scelto (deve essere uno degli esercizi ancora da svolgere, posizione > corrente); `400` se non disponibile. La `currentPosition` non cambia (non consuma uno split)
 
 006. Le mutazioni di stato/squadre sono rifiutate (409) se incompatibili con lo stato corrente (es. `close` fuori da `running`, `POST /api/teams` fuori da `onboarding`)
 
@@ -38,6 +43,6 @@
 - alla connessione: evento `snapshot` con il `WorkoutSnapshot` completo (reload-safe)
 - `tick`: `{ elapsedMs, state }` ogni ~1s mentre `running` (il client può interpolare tra i tick, ma l'autorità è il server, doc/01 009)
 - `state`: ad ogni cambio di stato (start/countdown/pausa/ripresa/stop)
-- `team`: ad ogni `close`/`undo`, con il `TeamProgress` aggiornato della squadra
+- `team`: ad ogni `close`/`undo`/`pause`/`resume`/`switch` di squadra, con il `TeamProgress` aggiornato (incluso il flag `paused`)
 
 008. Risultati: la pagina usa il `WorkoutSnapshot` in stato `finished`; la classifica si ottiene ordinando le squadre `finished` per `totalMs` crescente, con i `splits` come dettaglio parziali (doc/00 014)

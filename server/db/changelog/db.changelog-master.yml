@@ -17,3 +17,6 @@ databaseChangeLog:
   - include:
       file: changes/005-exercise-image.yml
       relativeToChangelogFile: true
+  - include:
+      file: changes/006-team-pause.yml
+      relativeToChangelogFile: true

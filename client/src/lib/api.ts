@@ -106,4 +106,10 @@ export const api = {
 
   close: (id: number) => req<WorkoutSnapshot>('POST', `/api/teams/${id}/close`),
   undo: (id: number) => req<WorkoutSnapshot>('POST', `/api/teams/${id}/undo`),
+
+  // Postazione occupata (doc/06): pausa/ripresa del solo contatore squadra; cambio esercizio.
+  pauseTeam: (id: number) => req<WorkoutSnapshot>('POST', `/api/teams/${id}/pause`),
+  resumeTeam: (id: number) => req<WorkoutSnapshot>('POST', `/api/teams/${id}/resume`),
+  switchExercise: (id: number, exerciseId: number) =>
+    req<WorkoutSnapshot>('POST', `/api/teams/${id}/switch`, { exerciseId }),
 };
