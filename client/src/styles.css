@@ -164,9 +164,17 @@ button.cancel-start { background: transparent; border-color: var(--danger); colo
 .target { color: var(--muted); margin-top: 6px; }
 .done { font-size: 18px; color: #3cb44b; }
 .lane-actions { display: flex; gap: 6px; padding: 8px; }
-.lane-actions.secondary { padding-top: 0; }
-.lane-actions .close { flex: 1; background: var(--accent); border-color: var(--accent); font-weight: 600; }
-.lane-actions.secondary button { flex: 1; }
+/* tasto primario grande e isolato (sfrutta lo spazio della corsia) */
+.lane-actions.primary { padding-bottom: 0; }
+.lane-actions.primary .close {
+  flex: 1; background: var(--accent); border-color: var(--accent);
+  font-weight: 700; font-size: 28px; padding: 40px 12px;
+}
+/* azioni secondarie staccate dal tasto primario per evitare tocchi accidentali */
+.lane-actions.secondary {
+  margin-top: 64px; border-top: 1px solid #2c3040; padding-top: 14px;
+}
+.lane-actions.secondary button { flex: 1; font-size: 13px; padding: 8px 6px; }
 
 /* ---- postazione occupata: pausa per-squadra ---- */
 .lane.paused { opacity: 0.85; }

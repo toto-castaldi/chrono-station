@@ -151,7 +151,10 @@ export function Execution({ snap }: { snap: WorkoutSnapshot }) {
                   </div>
                 )}
               </div>
-              <div className="lane-actions">
+              {/* Chiudi esercizio è il tasto primario, grande e isolato: le azioni
+                  secondarie stanno in una fascia staccata sotto per evitare tocchi
+                  accidentali (doc/02 003) */}
+              <div className="lane-actions primary">
                 <button
                   className="close"
                   disabled={finished || paused || !running}
@@ -159,6 +162,8 @@ export function Execution({ snap }: { snap: WorkoutSnapshot }) {
                 >
                   Chiudi esercizio
                 </button>
+              </div>
+              <div className="lane-actions secondary">
                 <button
                   className="undo"
                   disabled={pos === 0}
@@ -166,10 +171,8 @@ export function Execution({ snap }: { snap: WorkoutSnapshot }) {
                 >
                   ↶ Undo
                 </button>
-              </div>
-              {!finished && (
-                <div className="lane-actions secondary">
-                  {paused ? (
+                {!finished &&
+                  (paused ? (
                     <button className="resume-team" disabled={!running} onClick={() => run(api.resumeTeam(t.id))}>
                       ▶ Riprendi squadra
                     </button>
@@ -177,7 +180,8 @@ export function Execution({ snap }: { snap: WorkoutSnapshot }) {
                     <button className="pause-team" disabled={!running} onClick={() => run(api.pauseTeam(t.id))}>
                       ⏸ Pausa squadra
                     </button>
-                  )}
+                  ))}
+                {!finished && (
                   <button
                     className="switch"
                     disabled={paused || !running || remaining.length === 0}
@@ -185,8 +189,8 @@ export function Execution({ snap }: { snap: WorkoutSnapshot }) {
                   >
                     ⇄ Cambia esercizio
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           );
         })}
