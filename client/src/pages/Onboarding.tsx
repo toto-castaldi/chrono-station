@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Exercise, TargetType, WorkoutSnapshot } from '@shared/index';
-import { api } from '../lib/api.js';
+import { api, exerciseImageUrl } from '../lib/api.js';
 
 const TARGET_LABELS: Record<TargetType, string> = {
   none: 'Nessuno',
@@ -160,6 +160,9 @@ function ExerciseCatalog({
   const [value, setValue] = useState('');
   const [unit, setUnit] = useState('');
   const [editId, setEditId] = useState<number | null>(null);
+  // immagine in attesa di upload (nuovo esercizio o sostituzione); fileKey resetta l'<input file>
+  const [file, setFile] = useState<File | null>(null);
+  const [fileKey, setFileKey] = useState(0);
 
   const reset = () => {
     setEditId(null);
@@ -167,7 +170,11 @@ function ExerciseCatalog({
     setType('none');
     setValue('');
     setUnit('');
+    setFile(null);
+    setFileKey((k) => k + 1);
   };
+
+  const editing = editId !== null ? exercises.find((e) => e.id === editId) : undefined;
 
   const pickType = (t: TargetType) => {
     setType(t);
@@ -188,8 +195,20 @@ function ExerciseCatalog({
 
   const save = () => {
     if (!canSave) return;
-    const p = editId === null ? api.createExercise(body()) : api.updateExercise(editId, body());
-    run(p.then(reset));
+    // dopo create/update, se c'è un file in attesa lo si carica sull'esercizio (che è unico per nome)
+    const saved =
+      editId === null
+        ? api.createExercise(body()).then((snap) =>
+            file
+              ? snap.exercises.find((e) => e.name.toLowerCase() === trimmed.toLowerCase())?.id
+              : undefined,
+          )
+        : api.updateExercise(editId, body()).then(() => (file ? editId : undefined));
+    run(
+      saved
+        .then((id) => (id != null && file ? api.setExerciseImage(id, file) : undefined))
+        .then(reset),
+    );
   };
 
   const startEdit = (ex: Exercise) => {
@@ -234,6 +253,25 @@ function ExerciseCatalog({
             />
           </>
         )}
+        <label className="image-pick">
+          🖼
+          <input
+            key={fileKey}
+            type="file"
+            accept="image/*"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          />
+          {file ? file.name : editing?.hasImage ? 'sostituisci immagine' : 'immagine (opzionale)'}
+        </label>
+        {/* immagine già presente (in modifica): anteprima + rimozione */}
+        {editing && exerciseImageUrl(editing) && !file && (
+          <span className="image-current">
+            <img src={exerciseImageUrl(editing)!} alt="" />
+            <button onClick={() => run(api.deleteExerciseImage(editing.id))} title="rimuovi immagine">
+              ✕
+            </button>
+          </span>
+        )}
         <button disabled={!canSave} onClick={save}>
           {editId === null ? '+ Aggiungi esercizio' : 'Salva'}
         </button>
@@ -246,6 +284,9 @@ function ExerciseCatalog({
         <ul className="exercise-list">
           {exercises.map((ex) => (
             <li key={ex.id}>
+              {exerciseImageUrl(ex) && (
+                <img className="ex-thumb" src={exerciseImageUrl(ex)!} alt="" />
+              )}
               <span className="ex-name">{ex.name}</span>
               <span className="ex-target">{targetText(ex)}</span>
               <button onClick={() => startEdit(ex)} title="modifica">

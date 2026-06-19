@@ -1,6 +1,6 @@
 001. Il modello dati vive su PostgreSQL ed è multi-utente, un allenamento per utente (coerente con doc/01-architecture.md 004): ogni utente (`app_user`) ha al più una riga `workout` (`workout.user_id` UNIQUE), le proprie squadre e il proprio catalogo esercizi (`exercise.user_id`, censito in onboarding)
 
-002. Schema definito **by code** con Liquibase, in changelog **YAML** versionati in `server/db/changelog/`: master `db.changelog-master.yml` che include i changeset in `changes/` (`001-initial-schema.yml`, `002-seed.yml`, `003-auth-multitenancy.yml`, `004-exercise-per-user.yml`). Le tabelle e i dati seed (catalogo esercizi) NON sono creati dal codice applicativo: sono changeset Liquibase. Il changeset `003` introduce `app_user`, fa migrare il `workout` da singleton globale (`CHECK (id = 1)`) a uno-per-utente (chiave `user_id`) e partiziona `team` per utente; non crea alcun utente (`app_user` parte vuota: gli utenti si creano a mano, dev e prod) ed elimina i dati del vecchio modello single-tenant (riga singleton `workout` ed eventuali squadre) che nel modello per-utente non avrebbero proprietario. Il changeset `004` rende anche il catalogo esercizi per-utente: aggiunge `exercise.user_id` (FK `app_user`) ed elimina gli esercizi seedati dal `002` (privi di proprietario) — il catalogo di ogni utente parte vuoto e si popola via censimento in onboarding. Per evolvere lo schema si aggiunge **sempre un nuovo changeset** (mai modificare quelli già rilasciati), così l'`update` è idempotente e tracciato in `databasechangelog`. Gli istanti/durate in epoch ms eccedono il range `INTEGER`: sono `BIGINT`. Lo schema risultante (in SQL, a scopo illustrativo — la definizione autoritativa è nel changelog YAML):
+002. Schema definito **by code** con Liquibase, in changelog **YAML** versionati in `server/db/changelog/`: master `db.changelog-master.yml` che include i changeset in `changes/` (`001-initial-schema.yml`, `002-seed.yml`, `003-auth-multitenancy.yml`, `004-exercise-per-user.yml`, `005-exercise-image.yml`). Le tabelle e i dati seed (catalogo esercizi) NON sono creati dal codice applicativo: sono changeset Liquibase. Il changeset `003` introduce `app_user`, fa migrare il `workout` da singleton globale (`CHECK (id = 1)`) a uno-per-utente (chiave `user_id`) e partiziona `team` per utente; non crea alcun utente (`app_user` parte vuota: gli utenti si creano a mano, dev e prod) ed elimina i dati del vecchio modello single-tenant (riga singleton `workout` ed eventuali squadre) che nel modello per-utente non avrebbero proprietario. Il changeset `004` rende anche il catalogo esercizi per-utente: aggiunge `exercise.user_id` (FK `app_user`) ed elimina gli esercizi seedati dal `002` (privi di proprietario) — il catalogo di ogni utente parte vuoto e si popola via censimento in onboarding. Il changeset `005` aggiunge l'immagine opzionale per esercizio (`image_data` BYTEA, `image_mime`, `image_version`): nuove colonne nullable, nessun impatto sugli esercizi esistenti. Per evolvere lo schema si aggiunge **sempre un nuovo changeset** (mai modificare quelli già rilasciati), così l'`update` è idempotente e tracciato in `databasechangelog`. Gli istanti/durate in epoch ms eccedono il range `INTEGER`: sono `BIGINT`. Lo schema risultante (in SQL, a scopo illustrativo — la definizione autoritativa è nel changelog YAML):
 
 ```sql
 -- utenti dell'app: password cifrata bcrypt. Creati solo via seed/admin (doc/00 019).
@@ -18,7 +18,12 @@ CREATE TABLE exercise (
   name         TEXT NOT NULL,
   target_type  TEXT NOT NULL DEFAULT 'none',  -- 'none' | 'reps' | 'distance'
   target_value INTEGER,                       -- es. 1000 (m) o 100 (reps); NULL se 'none'
-  unit         TEXT                            -- es. 'm' | 'reps'; NULL se 'none'
+  unit         TEXT,                           -- es. 'm' | 'reps'; NULL se 'none'
+  -- immagine opzionale (doc/03 005): i byte stanno nel DB ma NON nello snapshot SSE,
+  -- si servono da GET /api/exercises/:id/image; image_version cresce a ogni upload (cache-busting)
+  image_data    BYTEA,                         -- byte dell'immagine; NULL se assente
+  image_mime    TEXT,                          -- 'image/jpeg' | 'image/png' | 'image/webp'; NULL se assente
+  image_version INTEGER NOT NULL DEFAULT 0     -- 0 = nessuna immagine; ?v= per il cache-busting client
 );
 
 -- allenamento per-utente (un solo workout per utente). Il server è l'orologio autoritativo (doc/01 007).
@@ -91,8 +96,12 @@ I `BIGINT` arriverebbero dal driver `pg` come stringa: il server registra un typ
 export type WorkoutState = 'onboarding' | 'countdown' | 'running' | 'paused' | 'finished';
 export type TargetType = 'none' | 'reps' | 'distance';
 
-export interface Exercise { id: number; name: string; targetType: TargetType; targetValue?: number; unit?: string; }
+// hasImage/imageVersion descrivono l'immagine SENZA trasportarne i byte (che si scaricano
+// da GET /api/exercises/:id/image?v=imageVersion). imageVersion = 0 ⇒ nessuna immagine.
+export interface Exercise { id: number; name: string; targetType: TargetType; targetValue?: number; unit?: string; hasImage: boolean; imageVersion: number; }
 export interface TeamExerciseRef { exerciseId: number; position: number; }
+// upload immagine: il client ridimensiona/comprime e invia base64
+export interface SetExerciseImageBody { dataBase64: string; mime: string; }
 export interface Split { position: number; cumulativeMs: number; }
 
 export interface Team {

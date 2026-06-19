@@ -4,6 +4,8 @@
 
 003. Ogni esercizio ha un nome e un obiettivo opzionale (ripetizioni o distanza: tipo + valore intero positivo + unità). L'obiettivo è informativo: la chiusura dell'esercizio è sempre manuale (vedi doc/00-requirements.md 009-010)
 
+005. Ogni esercizio può avere un'**immagine** associata, **opzionale**: caricata in onboarding (upload di un file dal dispositivo, ridimensionato/compresso lato client) e mostrata durante l'esecuzione, così l'operatore riconosce l'esercizio corrente a colpo d'occhio. Se un esercizio non ha immagine, in esecuzione si mostra un **placeholder**. L'immagine si può sostituire o rimuovere in onboarding (come per gli altri campi del catalogo). I byte sono salvati nel DB (BYTEA) e serviti da un endpoint dedicato (doc/05, doc/06)
+
 004. Lista di esempio/ispirazione (stile Hyrox), utile come riferimento per l'operatore — non è precaricata:
 - SkiErg — distanza (es. 1000 m)
 - Sled Push — distanza (es. 50 m)

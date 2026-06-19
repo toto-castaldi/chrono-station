@@ -92,7 +92,19 @@ button.danger { background: var(--danger); border-color: var(--danger); }
 .exercise-list .ex-name { font-weight: 600; }
 .exercise-list .ex-target { font-size: 13px; opacity: 0.7; }
 .exercise-list button { padding: 2px 6px; font-size: 13px; }
+.exercise-list .ex-thumb { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; }
 .exercise-catalog .hint { color: #f58231; font-size: 13px; }
+
+/* upload immagine esercizio */
+.exercise-form .image-pick {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  background: var(--panel); border: 1px solid #2c3040; color: var(--muted);
+  padding: 8px 10px; border-radius: 8px; font-size: 13px; max-width: 220px;
+}
+.exercise-form .image-pick input { display: none; }
+.exercise-form .image-current { display: inline-flex; align-items: center; gap: 4px; }
+.exercise-form .image-current img { width: 32px; height: 32px; object-fit: cover; border-radius: 4px; }
+.exercise-form .image-current button { padding: 2px 6px; font-size: 12px; }
 
 .new-team { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
 .new-team input { background: var(--panel); border: 1px solid #2c3040; color: var(--text); padding: 10px; border-radius: 8px; }
@@ -125,7 +137,12 @@ button.danger { background: var(--danger); border-color: var(--danger); }
 .lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .lane { background: var(--panel); border: 2px solid; border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
 .lane-head { display: flex; justify-content: space-between; padding: 8px 12px; color: #fff; font-size: 18px; }
-.lane-body { padding: 16px 12px; flex: 1; text-align: center; }
+.lane-body { padding: 16px 12px; flex: 1; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+.lane-body .ex-image { width: 100%; max-height: 160px; object-fit: contain; border-radius: 8px; }
+.lane-body .ex-image.placeholder {
+  display: grid; place-items: center; height: 120px; font-size: 64px;
+  background: #11131b; border: 1px dashed #2c3040; color: var(--muted);
+}
 .current-ex { font-size: 22px; font-weight: 600; }
 .target { color: var(--muted); margin-top: 6px; }
 .done { font-size: 18px; color: #3cb44b; }

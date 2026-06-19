@@ -17,6 +17,10 @@ export interface Exercise {
   targetType: TargetType;
   targetValue?: number;
   unit?: string;
+  // Immagine opzionale (doc/03 005): i byte NON viaggiano nello snapshot — si scaricano
+  // da GET /api/exercises/:id/image. imageVersion (0 = nessuna) serve al cache-busting (?v=).
+  hasImage: boolean;
+  imageVersion: number;
 }
 
 export interface TeamExerciseRef {
@@ -88,6 +92,12 @@ export interface UpdateExerciseBody {
   targetType?: TargetType;
   targetValue?: number;
   unit?: string;
+}
+
+// Upload dell'immagine di un esercizio: il client ridimensiona/comprime e invia base64.
+export interface SetExerciseImageBody {
+  dataBase64: string; // payload base64 (senza prefisso data:)
+  mime: string; // 'image/jpeg' | 'image/png' | 'image/webp'
 }
 
 export interface StartBody {

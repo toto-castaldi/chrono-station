@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { TeamProgress, WorkoutSnapshot } from '@shared/index';
-import { api } from '../lib/api.js';
+import { api, exerciseImageUrl } from '../lib/api.js';
 import { formatTime } from '../lib/format.js';
 
 export function Execution({ snap }: { snap: WorkoutSnapshot }) {
@@ -68,6 +68,11 @@ export function Execution({ snap }: { snap: WorkoutSnapshot }) {
                   <div className="done">✔ finito — {formatTime(p?.totalMs ?? 0)}</div>
                 ) : ex ? (
                   <>
+                    {exerciseImageUrl(ex) ? (
+                      <img className="ex-image" src={exerciseImageUrl(ex)!} alt={ex.name} />
+                    ) : (
+                      <div className="ex-image placeholder" aria-hidden="true">🏋️</div>
+                    )}
                     <div className="current-ex">{ex.name}</div>
                     {ex.targetType !== 'none' && (
                       <div className="target">

@@ -5,6 +5,7 @@ import type {
   CreateExerciseBody,
   CreateTeamBody,
   LoginBody,
+  SetExerciseImageBody,
   SetExercisesBody,
   StartBody,
   UpdateExerciseBody,
@@ -19,10 +20,13 @@ import {
   createExercise,
   createTeam,
   deleteExercise,
+  deleteExerciseImage,
   deleteTeam,
+  getExerciseImage,
   pause,
   reset,
   resume,
+  setExerciseImage,
   setTeamExercises,
   snapshot,
   start,
@@ -32,7 +36,8 @@ import {
   updateTeam,
 } from './store.js';
 
-const app = Fastify({ logger: true });
+// bodyLimit alzato (default 1 MB) per accogliere l'upload immagine in base64 (doc/06).
+const app = Fastify({ logger: true, bodyLimit: 5 * 1024 * 1024 });
 // credentials: true necessario per inviare il cookie di sessione (origin:true riflette l'origine, mai '*')
 await app.register(cors, { origin: true, credentials: true });
 await app.register(cookie, {
@@ -138,6 +143,33 @@ app.delete<{ Params: { id: string } }>('/api/exercises/:id', async (req) => {
   await deleteExercise(req.userId, Number(req.params.id));
   await broadcastSnapshot(req.userId, 'state');
   return snapshot(req.userId);
+});
+
+// ---- immagine esercizio ----
+app.put<{ Params: { id: string }; Body: SetExerciseImageBody }>(
+  '/api/exercises/:id/image',
+  async (req) => {
+    await setExerciseImage(req.userId, Number(req.params.id), req.body.dataBase64, req.body.mime);
+    await broadcastSnapshot(req.userId, 'state');
+    return snapshot(req.userId);
+  },
+);
+
+app.delete<{ Params: { id: string } }>('/api/exercises/:id/image', async (req) => {
+  await deleteExerciseImage(req.userId, Number(req.params.id));
+  await broadcastSnapshot(req.userId, 'state');
+  return snapshot(req.userId);
+});
+
+// GET dei byte: disponibile in tutti gli stati (serve in esecuzione). Cache lunga +
+// invalidazione via ?v=imageVersion lato client (il contenuto a una versione è immutabile).
+app.get<{ Params: { id: string } }>('/api/exercises/:id/image', async (req, reply) => {
+  const img = await getExerciseImage(req.userId, Number(req.params.id));
+  if (!img) throw new HttpError(404, 'immagine non trovata');
+  return reply
+    .header('Content-Type', img.mime)
+    .header('Cache-Control', 'private, max-age=31536000, immutable')
+    .send(img.data);
 });
 
 // ---- controllo esecuzione ----

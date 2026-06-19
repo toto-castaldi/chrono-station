@@ -1,0 +1,20 @@
+# Immagine per esercizio (doc/03-exercises.md, doc/05-data-model.md, doc/06-api.md).
+# Ogni esercizio può avere un'immagine opzionale, caricata in onboarding e mostrata in
+# esecuzione. I byte stanno nel DB (BYTEA) — coerente con server stateless, nessun volume
+# file — e si servono da un endpoint dedicato: NON viaggiano mai nello snapshot SSE.
+# image_version si incrementa a ogni upload e serve al client per il cache-busting (?v=).
+databaseChangeLog:
+  - changeSet:
+      id: 005-exercise-image
+      author: chrono
+      changes:
+        - addColumn:
+            tableName: exercise
+            columns:
+              - column: { name: image_data, type: BYTEA }
+              - column: { name: image_mime, type: TEXT }
+              - column:
+                  name: image_version
+                  type: INTEGER
+                  defaultValueNumeric: 0
+                  constraints: { nullable: false }

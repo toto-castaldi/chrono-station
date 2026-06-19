@@ -8,6 +8,7 @@
 002. Endpoint REST — lettura:
 - `GET /api/exercises` → catalogo esercizi dell'utente autenticato
 - `GET /api/workout` → `WorkoutSnapshot` corrente (qualunque pagina lo usa per ripartire dopo un reload)
+- `GET /api/exercises/:id/image` → i byte dell'immagine dell'esercizio col rispettivo `Content-Type`; `404` se assente o non dell'utente. Disponibile **in tutti gli stati** (serve in esecuzione, non solo in onboarding). `Cache-Control` lungo: il contenuto a una data versione è immutabile, l'invalidazione avviene col query param `?v=imageVersion`
 
 003. Endpoint REST — onboarding (consentiti solo con `state = 'onboarding'`):
 - `POST /api/teams` → crea squadra `{ name, color, members[] }`
@@ -17,6 +18,8 @@
 - `POST /api/exercises` → censisce un esercizio nel catalogo dell'utente `{ name, targetType, targetValue?, unit? }`; nome univoco per utente (case-insensitive)
 - `PATCH /api/exercises/:id` → aggiorna nome/obiettivo di un esercizio
 - `DELETE /api/exercises/:id` → elimina un esercizio; `409` se è ancora nell'ordine di una squadra (va prima rimosso da quelle squadre)
+- `PUT /api/exercises/:id/image` ← `{ dataBase64, mime }` → associa/sostituisce l'immagine dell'esercizio; valida mime (`image/jpeg|png|webp`) e dimensione (max 2 MB decodificati), incrementa `imageVersion`. Il `bodyLimit` del server è alzato a 5 MB per accogliere il base64
+- `DELETE /api/exercises/:id/image` → rimuove l'immagine dell'esercizio (incrementa comunque `imageVersion` per invalidare la cache)
 
 004. Endpoint REST — controllo esecuzione:
 - `POST /api/workout/start` → da `onboarding`: congela le squadre (doc/00 016), passa a `countdown`; al termine del countdown lo stato diventa `running` con `elapsed=0` (doc/00 015)

@@ -67,20 +67,33 @@ interface ExerciseRow {
   target_type: Exercise['targetType'];
   target_value: number | null;
   unit: string | null;
+  has_image: boolean;
+  image_version: number;
 }
 
-// Il catalogo esercizi è per-utente: ogni operatore censisce i propri (doc/03).
-async function listExercises(userId: number): Promise<Exercise[]> {
-  const rows = await all<ExerciseRow>('SELECT * FROM exercise WHERE user_id = $1 ORDER BY id', [
-    userId,
-  ]);
-  return rows.map((r) => ({
+// Colonne esposte al client: MAI image_data (pesante e non serve nello snapshot).
+const EXERCISE_COLS =
+  'id, name, target_type, target_value, unit, (image_data IS NOT NULL) AS has_image, image_version';
+
+function toExercise(r: ExerciseRow): Exercise {
+  return {
     id: r.id,
     name: r.name,
     targetType: r.target_type,
     targetValue: r.target_value ?? undefined,
     unit: r.unit ?? undefined,
-  }));
+    hasImage: r.has_image,
+    imageVersion: r.image_version,
+  };
+}
+
+// Il catalogo esercizi è per-utente: ogni operatore censisce i propri (doc/03).
+async function listExercises(userId: number): Promise<Exercise[]> {
+  const rows = await all<ExerciseRow>(
+    `SELECT ${EXERCISE_COLS} FROM exercise WHERE user_id = $1 ORDER BY id`,
+    [userId],
+  );
+  return rows.map(toExercise);
 }
 
 interface TeamRow {
@@ -270,10 +283,10 @@ export async function setTeamExercises(
 
 async function getExerciseRow(userId: number, id: number): Promise<ExerciseRow> {
   // come per le squadre: il filtro su user_id rende l'accesso cross-utente un 404
-  const row = await get<ExerciseRow>('SELECT * FROM exercise WHERE id = $1 AND user_id = $2', [
-    id,
-    userId,
-  ]);
+  const row = await get<ExerciseRow>(
+    `SELECT ${EXERCISE_COLS} FROM exercise WHERE id = $1 AND user_id = $2`,
+    [id, userId],
+  );
   if (!row) throw new HttpError(404, `esercizio ${id} non trovato`);
   return row;
 }
@@ -356,6 +369,53 @@ export async function deleteExercise(userId: number, id: number): Promise<void> 
   if ((used?.n ?? 0) > 0)
     throw new HttpError(409, 'esercizio usato da una o più squadre: rimuovilo prima dalle squadre');
   await all('DELETE FROM exercise WHERE id = $1', [id]);
+}
+
+// Immagine esercizio (doc/03 005): opzionale, byte come BYTEA nel DB.
+const ALLOWED_IMAGE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2 MB dopo decodifica
+
+// L'upload è una modifica del catalogo: consentito solo in onboarding (come create/update).
+export async function setExerciseImage(
+  userId: number,
+  id: number,
+  dataBase64: string,
+  mime: string,
+): Promise<void> {
+  await assertOnboarding(userId);
+  await getExerciseRow(userId, id); // ownership check (404 se non dell'utente)
+  if (!ALLOWED_IMAGE_MIME.has(mime))
+    throw new HttpError(400, 'formato immagine non supportato (jpeg, png o webp)');
+  const data = Buffer.from(dataBase64 ?? '', 'base64');
+  if (data.length === 0) throw new HttpError(400, 'immagine vuota o non valida');
+  if (data.length > MAX_IMAGE_BYTES) throw new HttpError(400, 'immagine troppo grande (max 2 MB)');
+  await all(
+    'UPDATE exercise SET image_data = $1, image_mime = $2, image_version = image_version + 1 WHERE id = $3',
+    [data, mime, id],
+  );
+}
+
+export async function deleteExerciseImage(userId: number, id: number): Promise<void> {
+  await assertOnboarding(userId);
+  await getExerciseRow(userId, id);
+  // image_version si incrementa comunque: invalida la cache del client che aveva l'immagine
+  await all(
+    'UPDATE exercise SET image_data = NULL, image_mime = NULL, image_version = image_version + 1 WHERE id = $1',
+    [id],
+  );
+}
+
+// Lettura dei byte: NON gated da onboarding — serve anche durante l'esecuzione.
+export async function getExerciseImage(
+  userId: number,
+  id: number,
+): Promise<{ data: Buffer; mime: string } | null> {
+  const row = await get<{ image_data: Buffer | null; image_mime: string | null }>(
+    'SELECT image_data, image_mime FROM exercise WHERE id = $1 AND user_id = $2',
+    [id, userId],
+  );
+  if (!row || !row.image_data || !row.image_mime) return null;
+  return { data: row.image_data, mime: row.image_mime };
 }
 
 // ---- controllo esecuzione ----

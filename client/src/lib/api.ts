@@ -2,6 +2,7 @@ import type {
   AuthResponse,
   CreateExerciseBody,
   CreateTeamBody,
+  Exercise,
   LoginBody,
   SetExercisesBody,
   StartBody,
@@ -10,6 +11,12 @@ import type {
   User,
   WorkoutSnapshot,
 } from '@shared/index';
+import { fileToScaledJpeg } from './image.js';
+
+/** URL dei byte dell'immagine di un esercizio, o null se assente. ?v= invalida la cache. */
+export function exerciseImageUrl(ex: Exercise): string | null {
+  return ex.hasImage ? `/api/exercises/${ex.id}/image?v=${ex.imageVersion}` : null;
+}
 
 // Sessione scaduta / assente: le chiamate protette ricevono 401. Lo segnaliamo
 // globalmente così App può tornare alla pagina di Login (anche su scadenza a metà sessione).
@@ -82,6 +89,14 @@ export const api = {
   updateExercise: (id: number, b: UpdateExerciseBody) =>
     req<WorkoutSnapshot>('PATCH', `/api/exercises/${id}`, b),
   deleteExercise: (id: number) => req<WorkoutSnapshot>('DELETE', `/api/exercises/${id}`),
+
+  // immagine: ridimensionata/compressa lato client prima dell'upload (vedi lib/image.ts)
+  setExerciseImage: async (id: number, file: File) => {
+    const { dataBase64, mime } = await fileToScaledJpeg(file);
+    return req<WorkoutSnapshot>('PUT', `/api/exercises/${id}/image`, { dataBase64, mime });
+  },
+  deleteExerciseImage: (id: number) =>
+    req<WorkoutSnapshot>('DELETE', `/api/exercises/${id}/image`),
 
   start: (b?: StartBody) => req<WorkoutSnapshot>('POST', '/api/workout/start', b ?? {}),
   pause: () => req<WorkoutSnapshot>('POST', '/api/workout/pause'),
