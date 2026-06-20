@@ -24,7 +24,7 @@
 
 013. L'allenamento termina quando l'operatore preme Stop (con alert di conferma), che porta alla pagina dei risultati. Lo Stop è consentito solo dopo che **tutte** le squadre hanno completato il proprio circuito (vedi 012): finché anche una sola squadra non ha finito, il pulsante Stop resta disabilitato e il server rifiuta la richiesta. A circuito completato la chiusura resta comunque un'azione manuale dell'operatore (nessuna fine automatica)
 
-014. La pagina dei risultati mostra la classifica delle squadre per tempo totale crescente, con il dettaglio dei tempi parziali per esercizio di ciascuna squadra
+014. La pagina dei risultati mostra la classifica delle squadre per tempo totale crescente, con il dettaglio per esercizio di ciascuna squadra: per ogni esercizio si mostrano sia il **tempo impiegato a concluderlo** (parziale per-esercizio = differenza tra chiusure consecutive) sia il **tempo cumulativo** dallo Start
 
 015. Dopo lo Start (e relativa conferma) parte un conto alla rovescia iniziale (es. 3-2-1); il contatore globale inizia da zero al termine del countdown e le squadre partono insieme
 

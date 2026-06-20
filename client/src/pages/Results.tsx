@@ -27,6 +27,7 @@ export function Results({ snap }: { snap: WorkoutSnapshot }) {
           const order = team
             ? [...team.exercises].sort((a, b) => a.position - b.position)
             : [];
+          const splits = [...p.splits].sort((a, b) => a.position - b.position);
           return (
             <li key={p.teamId} className="rank-row">
               <div className="rank-head" style={{ borderColor: team?.color }}>
@@ -38,13 +39,27 @@ export function Results({ snap }: { snap: WorkoutSnapshot }) {
                 </span>
               </div>
               <table className="splits">
+                <thead>
+                  <tr>
+                    <th>Esercizio</th>
+                    <th>Parziale</th>
+                    <th>Cumulativo</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {p.splits.map((s) => (
-                    <tr key={s.position}>
-                      <td>{exById(order[s.position]?.exerciseId ?? -1)?.name ?? s.position}</td>
-                      <td>{formatTime(s.cumulativeMs)}</td>
-                    </tr>
-                  ))}
+                  {splits.map((s, idx) => {
+                    // tempo per-esercizio = differenza tra split cumulativi consecutivi
+                    // (il primo parte da 0); il cumulativo è il tempo dallo Start.
+                    const prev = idx > 0 ? splits[idx - 1].cumulativeMs : 0;
+                    const lap = s.cumulativeMs - prev;
+                    return (
+                      <tr key={s.position}>
+                        <td>{exById(order[s.position]?.exerciseId ?? -1)?.name ?? s.position}</td>
+                        <td>{formatTime(lap)}</td>
+                        <td>{formatTime(s.cumulativeMs)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </li>

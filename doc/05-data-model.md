@@ -104,6 +104,8 @@ I `BIGINT` arriverebbero dal driver `pg` come stringa: il server registra un typ
 
 005. Undo (doc/00 017) = `DELETE` dello split con `position` massima per quella squadra: riapre l'esercizio corrente
 
+005b. Tempo per-esercizio (parziale mostrato nei risultati, doc/00 014): non è memorizzato, si deriva come differenza tra `cumulative_ms` di split consecutivi (il primo parte da 0). Essendo i `cumulative_ms` già al netto delle pause individuali, anche il parziale per-esercizio lo è
+
 006. Tipi TypeScript condivisi in `shared/` (riusati da client e server per coerenza end-to-end):
 
 ```ts

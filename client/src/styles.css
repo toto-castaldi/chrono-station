@@ -206,6 +206,13 @@ button.cancel-start { background: transparent; border-color: var(--danger); colo
 .rank-head .pos { font-size: 20px; font-weight: 800; width: 28px; text-align: center; }
 .rank-head .swatch { width: 18px; height: 18px; border-radius: 50%; }
 .rank-head .total { margin-left: auto; font-variant-numeric: tabular-nums; font-size: 18px; }
-.splits { width: 100%; border-collapse: collapse; margin: 4px 0 0 44px; color: var(--muted); }
+.splits { width: calc(100% - 44px); border-collapse: collapse; margin: 4px 0 0 44px; color: var(--muted); }
 .splits td { padding: 2px 8px; font-size: 13px; }
-.splits td:last-child { font-variant-numeric: tabular-nums; }
+.splits th {
+  padding: 2px 8px; font-size: 11px; font-weight: 600; text-align: left;
+  text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.6;
+}
+/* colonne tempo (parziale + cumulativo): allineate a destra e tabellari */
+.splits th:nth-child(n + 2), .splits td:nth-child(n + 2) { text-align: right; }
+.splits td:nth-child(n + 2) { font-variant-numeric: tabular-nums; }
+.splits td:last-child { opacity: 0.7; }
